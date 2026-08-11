@@ -4,7 +4,6 @@ namespace App\Http\Controllers\Api\V1;
 
 use App\Http\Controllers\Controller;
 use App\Http\Requests\Evaluacion\EvaluarOfertaRequest;
-use App\Models\Archivo;
 use App\Models\Convocatoria;
 use App\Models\Estado;
 use App\Models\Oferta;
@@ -27,7 +26,7 @@ class EvaluacionController extends Controller
         }
 
         $items = Oferta::query()
-            ->select(['OFER_ID', 'OFER_PROVEEDOR_ID', 'OFER_TOTAL_GENERAL', 'OFER_TIPO_COMPROBANTE_ID', 'OFER_EVAL_TECNICA', 'OFER_EVAL_LOGISTICA', 'OFER_ESTADO_ID', 'OFER_FECHA_ENVIO'])
+            ->select(['OFER_ID', 'OFER_PROVEEDOR_ID', 'OFER_CONSTANCIA_CODIGO', 'OFER_TOTAL_GENERAL', 'OFER_TIPO_COMPROBANTE_ID', 'OFER_EVAL_TECNICA', 'OFER_EVAL_LOGISTICA', 'OFER_ESTADO_ID', 'OFER_FECHA_ENVIO'])
             ->where('OFER_CONVOCATORIA_ID', $id)
             ->with([
                 'proveedor' => fn ($q) => $q->select(['PROV_ID', 'PROV_NUMERO_DOCUMENTO', 'PROV_RAZON_SOCIAL']),
@@ -38,6 +37,7 @@ class EvaluacionController extends Controller
             ->get()
             ->map(fn (Oferta $o) => [
                 'oferta_id' => $o->OFER_ID,
+                'constancia_codigo' => $o->OFER_CONSTANCIA_CODIGO,
                 'proveedor' => ['proveedor_id' => $o->proveedor->PROV_ID, 'numero_documento' => $o->proveedor->PROV_NUMERO_DOCUMENTO, 'razon_social' => $o->proveedor->PROV_RAZON_SOCIAL],
                 'total_general' => $o->OFER_TOTAL_GENERAL,
                 'tipo_comprobante' => $o->tipoComprobante->TICO_CODIGO,
@@ -59,50 +59,11 @@ class EvaluacionController extends Controller
                 'OFER_PLAZO_GARANTIA', 'OFER_CONTACTO_NOMBRE', 'OFER_CONTACTO_TELEFONO', 'OFER_CONTACTO_CORREO',
                 'OFER_EVAL_TECNICA', 'OFER_EVAL_TECNICA_MOTIVO', 'OFER_EVAL_LOGISTICA', 'OFER_EVAL_LOGISTICA_MOTIVO',
             ])
-            ->with([
-                'proveedor' => fn ($q) => $q->select(['PROV_ID', 'PROV_NUMERO_DOCUMENTO', 'PROV_RAZON_SOCIAL']),
-                'items' => fn ($q) => $q->select(['OFIT_ID', 'OFIT_OFERTA_ID', 'OFIT_REQUERIMIENTO_ITEM_ID', 'OFIT_MARCA_MODELO', 'OFIT_PRECIO_UNITARIO', 'OFIT_PRECIO_TOTAL']),
-                'items.requerimientoItem' => fn ($q) => $q->select(['REIT_ID', 'REIT_NUMERO', 'REIT_DESCRIPCION', 'REIT_UNIDAD_MEDIDA_ID', 'REIT_CANTIDAD'])
-                    ->with(['unidadMedida' => fn ($qq) => $qq->select(['UNME_ID', 'UNME_CODIGO', 'UNME_NOMBRE'])]),
-            ])
             ->findOrFail($id);
 
         Convocatoria::select(['CONV_ID'])->findOrFail($oferta->OFER_CONVOCATORIA_ID);
 
-        $archivos = Archivo::select(['ARCH_ID', 'ARCH_CONTEXTO', 'ARCH_NOMBRE_ORIGINAL', 'ARCH_HASH_SHA256'])
-            ->where('ARCH_REFERENCIA_ID', $oferta->OFER_ID)
-            ->whereIn('ARCH_CONTEXTO', ['OFERTA_DJ', 'OFERTA_SUSTENTO'])
-            ->get();
-
-        return ApiResponse::success([
-            'oferta_id' => $oferta->OFER_ID,
-            'proveedor' => ['proveedor_id' => $oferta->proveedor->PROV_ID, 'numero_documento' => $oferta->proveedor->PROV_NUMERO_DOCUMENTO, 'razon_social' => $oferta->proveedor->PROV_RAZON_SOCIAL],
-            'items' => $oferta->items->map(fn ($item) => [
-                'numero' => $item->requerimientoItem->REIT_NUMERO,
-                'descripcion' => $item->requerimientoItem->REIT_DESCRIPCION,
-                'unidad_medida' => ['codigo' => $item->requerimientoItem->unidadMedida->UNME_CODIGO, 'nombre' => $item->requerimientoItem->unidadMedida->UNME_NOMBRE],
-                'cantidad' => $item->requerimientoItem->REIT_CANTIDAD,
-                'marca_modelo' => $item->OFIT_MARCA_MODELO,
-                'precio_unitario' => $item->OFIT_PRECIO_UNITARIO,
-                'precio_total' => $item->OFIT_PRECIO_TOTAL,
-            ]),
-            'archivos' => $archivos->map(fn (Archivo $a) => [
-                'archivo_id' => $a->ARCH_ID,
-                'contexto' => $a->ARCH_CONTEXTO,
-                'nombre' => $a->ARCH_NOMBRE_ORIGINAL,
-                'hash_sha256' => $a->ARCH_HASH_SHA256,
-                'descarga_url' => "/api/v1/archivos/{$a->ARCH_ID}/descargar",
-            ]),
-            'validez_dias' => $oferta->OFER_VALIDEZ_DIAS,
-            'plazo_ejecucion' => ['segun_tdr' => $oferta->OFER_PLAZO_EJECUCION_SEGUN_TDR, 'dias' => $oferta->OFER_PLAZO_EJECUCION_DIAS],
-            'forma_pago' => ['segun_tdr' => $oferta->OFER_FORMA_PAGO_SEGUN_TDR, 'dias' => $oferta->OFER_FORMA_PAGO_DIAS],
-            'plazo_garantia' => $oferta->OFER_PLAZO_GARANTIA,
-            'contacto' => ['nombre' => $oferta->OFER_CONTACTO_NOMBRE, 'telefono' => $oferta->OFER_CONTACTO_TELEFONO, 'correo' => $oferta->OFER_CONTACTO_CORREO],
-            'eval_tecnica' => $oferta->OFER_EVAL_TECNICA,
-            'eval_tecnica_motivo' => $oferta->OFER_EVAL_TECNICA_MOTIVO,
-            'eval_logistica' => $oferta->OFER_EVAL_LOGISTICA,
-            'eval_logistica_motivo' => $oferta->OFER_EVAL_LOGISTICA_MOTIVO,
-        ]);
+        return ApiResponse::success($this->evaluacionService->detalle($oferta));
     }
 
     public function evaluar(EvaluarOfertaRequest $request, int $id): JsonResponse

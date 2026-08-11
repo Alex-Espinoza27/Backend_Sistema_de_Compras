@@ -39,12 +39,32 @@ class ArchivoController extends Controller
     {
         match ($archivo->ARCH_CONTEXTO) {
             'REQUERIMIENTO_TDR' => $this->autorizarRequerimiento($user, $archivo->ARCH_REFERENCIA_ID),
-            'CONVOCATORIA_DOC', 'CONVOCATORIA_PLANTILLA_DJ' => $this->autorizarConvocatoria($user, $archivo->ARCH_REFERENCIA_ID),
-            'OFERTA_DJ', 'OFERTA_SUSTENTO' => $this->exigirPermiso($user, 'ofertas.ver'),
+            'CONVOCATORIA_DOC' => $this->autorizarConvocatoria($user, $archivo->ARCH_REFERENCIA_ID),
+            'CONVOCATORIA_PLANTILLA_DJ' => $this->autorizarPlantillaDj($user, $archivo->ARCH_REFERENCIA_ID),
+            'OFERTA_DJ', 'OFERTA_SUSTENTO' => $this->autorizarArchivoOferta($user),
             'PROVEEDOR_DOC' => $this->exigirPermiso($user, 'proveedores.ver_propio'),
             'RESULTADO_PDF' => null,
             default => throw new HttpException(404, 'El recurso solicitado no existe.'),
         };
+    }
+
+    /** La plantilla DJ también la descarga el proveedor que va a postular, no solo quien ve la convocatoria por dentro. */
+    private function autorizarPlantillaDj(User $user, int $convocatoriaId): void
+    {
+        if (! $user->can('convocatorias.ver') && ! $user->can('ofertas.crear')) {
+            throw new HttpException(403, 'No tiene permiso para descargar este archivo.');
+        }
+
+        Convocatoria::select(['CONV_ID'])->findOrFail($convocatoriaId);
+    }
+
+    /** El DJ/sustentos de una oferta los ve su proveedor dueño (ofertas.ver) y
+     * también la entidad que la evalúa (evaluacion.ver, F2 — 05B). */
+    private function autorizarArchivoOferta(User $user): void
+    {
+        if (! $user->can('ofertas.ver') && ! $user->can('evaluacion.ver')) {
+            throw new HttpException(403, 'No tiene permiso para descargar este archivo.');
+        }
     }
 
     private function autorizarRequerimiento(User $user, int $requerimientoId): void
