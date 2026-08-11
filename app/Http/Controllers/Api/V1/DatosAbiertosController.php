@@ -10,34 +10,40 @@ use App\Models\Estado;
 use App\Models\Oferta;
 use App\Support\ApiResponse;
 use Illuminate\Http\JsonResponse;
+use Illuminate\Http\Request;
 use Maatwebsite\Excel\Excel as ExcelFormat;
 use Maatwebsite\Excel\Facades\Excel;
 use Symfony\Component\HttpFoundation\BinaryFileResponse;
 
 class DatosAbiertosController extends Controller
 {
-    public function convocatoriasCsv(): BinaryFileResponse
+    // 05C hardening: `entidad_id` opcional en los 4 endpoints de descarga y
+    // en estadísticas — permite mostrar los mismos datos de "Datos abiertos"
+    // acotados a una sola entidad, pedido explícitamente para el portal
+    // libre por entidad (`/entidad/{id}`).
+    public function convocatoriasCsv(Request $request): BinaryFileResponse
     {
-        return Excel::download(new ConvocatoriasExport(), 'convocatorias.csv', ExcelFormat::CSV);
+        return Excel::download(new ConvocatoriasExport($request->integer('entidad_id') ?: null), 'convocatorias.csv', ExcelFormat::CSV);
     }
 
-    public function convocatoriasXlsx(): BinaryFileResponse
+    public function convocatoriasXlsx(Request $request): BinaryFileResponse
     {
-        return Excel::download(new ConvocatoriasExport(), 'convocatorias.xlsx', ExcelFormat::XLSX);
+        return Excel::download(new ConvocatoriasExport($request->integer('entidad_id') ?: null), 'convocatorias.xlsx', ExcelFormat::XLSX);
     }
 
-    public function adjudicacionesCsv(): BinaryFileResponse
+    public function adjudicacionesCsv(Request $request): BinaryFileResponse
     {
-        return Excel::download(new AdjudicacionesExport(), 'adjudicaciones.csv', ExcelFormat::CSV);
+        return Excel::download(new AdjudicacionesExport($request->integer('entidad_id') ?: null), 'adjudicaciones.csv', ExcelFormat::CSV);
     }
 
-    public function adjudicacionesXlsx(): BinaryFileResponse
+    public function adjudicacionesXlsx(Request $request): BinaryFileResponse
     {
-        return Excel::download(new AdjudicacionesExport(), 'adjudicaciones.xlsx', ExcelFormat::XLSX);
+        return Excel::download(new AdjudicacionesExport($request->integer('entidad_id') ?: null), 'adjudicaciones.xlsx', ExcelFormat::XLSX);
     }
 
-    public function estadisticas(): JsonResponse
+    public function estadisticas(Request $request): JsonResponse
     {
+        $entidadId = $request->integer('entidad_id') ?: null;
         $borradorId = Estado::where('ESTA_CONTEXTO', 'CONVOCATORIA')->where('ESTA_CODIGO', 'BORRADOR')->value('ESTA_ID');
         $adjudicadaId = Estado::where('ESTA_CONTEXTO', 'CONVOCATORIA')->where('ESTA_CODIGO', 'ADJUDICADA')->value('ESTA_ID');
 
@@ -45,6 +51,7 @@ class DatosAbiertosController extends Controller
             ->select(['CONV_ESTADO_ID'])
             ->selectRaw('count(*) as total')
             ->where('CONV_ESTADO_ID', '!=', $borradorId)
+            ->when($entidadId, fn ($q) => $q->where('CONV_ENTIDAD_ID', $entidadId))
             ->with(['estado' => fn ($sub) => $sub->select(['ESTA_ID', 'ESTA_CODIGO', 'ESTA_NOMBRE'])])
             ->groupBy('CONV_ESTADO_ID')
             ->get()
@@ -58,6 +65,7 @@ class DatosAbiertosController extends Controller
         $adjudicadasPorMes = Convocatoria::query()
             ->join('OFERTA', 'OFERTA.OFER_ID', '=', 'CONVOCATORIA.CONV_OFERTA_ADJUDICADA_ID')
             ->where('CONVOCATORIA.CONV_ESTADO_ID', $adjudicadaId)
+            ->when($entidadId, fn ($q) => $q->where('CONVOCATORIA.CONV_ENTIDAD_ID', $entidadId))
             ->selectRaw('to_char("CONVOCATORIA"."CONV_FECHA_RESULTADO", \'YYYY-MM\') as mes')
             ->selectRaw('count(*) as total')
             ->selectRaw('coalesce(sum("OFERTA"."OFER_TOTAL_GENERAL"), 0) as monto_adjudicado')
@@ -70,7 +78,10 @@ class DatosAbiertosController extends Controller
                 'monto_adjudicado' => (float) $fila->monto_adjudicado,
             ]);
 
-        $proveedoresParticipantes = Oferta::query()->distinct('OFER_PROVEEDOR_ID')->count('OFER_PROVEEDOR_ID');
+        $proveedoresParticipantes = Oferta::query()
+            ->when($entidadId, fn ($q) => $q->whereHas('convocatoria', fn ($sub) => $sub->where('CONV_ENTIDAD_ID', $entidadId)))
+            ->distinct('OFER_PROVEEDOR_ID')
+            ->count('OFER_PROVEEDOR_ID');
 
         return ApiResponse::success([
             'convocatorias_por_estado' => $porEstado,

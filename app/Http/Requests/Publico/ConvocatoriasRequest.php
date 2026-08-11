@@ -18,6 +18,8 @@ class ConvocatoriasRequest extends FormRequest
             'estado_grupo' => ['required', Rule::in(['VIGENTES', 'EN_EVALUACION', 'CONCLUIDAS'])],
             'entidad_id' => ['nullable', 'integer', Rule::exists('ENTIDAD', 'ENTI_ID')],
             'buscar' => ['nullable', 'string', 'max:150'],
+            'tipo' => ['nullable', Rule::in(['BIEN', 'SERVICIO'])],
+            'mias' => ['nullable', Rule::in(['true', 'false', '1', '0'])],
             'ordenar_por' => ['nullable', Rule::in(['fecha_fin', 'fecha_inicio', 'numero'])],
             'direccion' => ['nullable', Rule::in(['asc', 'desc'])],
             'pagina' => ['nullable', 'integer', 'min:1'],

@@ -17,8 +17,23 @@ class ResultadoService
     {
         // Se re-consulta con las columnas propias que necesita la plantilla:
         // no se puede confiar en qué seleccionó el llamador (02A §12).
-        $convocatoria = Convocatoria::select(['CONV_ID', 'CONV_NUMERO', 'CONV_NOMBRE_SERVICIO', 'CONV_ENTIDAD_ID'])
-            ->with(['entidad' => fn ($sub) => $sub->select(['ENTI_ID', 'ENTI_RAZON_SOCIAL'])])
+        // Encabezado tipo "Indagación de Mercado" (05C hardening, pedido
+        // explícitamente por el usuario): además del número correlativo, se
+        // trae fecha de inicio/resultado, motivo (si quedó DESIERTA) y los
+        // datos del requerimiento (objeto, tipo, área/centro de costo).
+        $convocatoria = Convocatoria::select([
+            'CONV_ID', 'CONV_NUMERO', 'CONV_NUMERO_INDAGACION', 'CONV_NOMBRE_SERVICIO', 'CONV_ENTIDAD_ID',
+            'CONV_REQUERIMIENTO_ID', 'CONV_FECHA_INICIO', 'CONV_FECHA_RESULTADO', 'CONV_MOTIVO_CIERRE', 'CONV_ESTADO_ID',
+        ])
+            ->with([
+                'entidad' => fn ($sub) => $sub->select(['ENTI_ID', 'ENTI_RAZON_SOCIAL']),
+                'estado' => fn ($sub) => $sub->select(['ESTA_ID', 'ESTA_CODIGO', 'ESTA_NOMBRE']),
+                // `withTrashed()`: el requerimiento pudo borrarse después de
+                // generado el documento (mismo criterio que el detalle
+                // público, PublicoController::convocatoria()).
+                'requerimiento' => fn ($sub) => $sub->select(['REQU_ID', 'REQU_OBJETO', 'REQU_TIPO', 'REQU_NUMERO', 'REQU_AREA_ID'])->withTrashed(),
+                'requerimiento.area' => fn ($sub) => $sub->select(['AREA_ID', 'AREA_NOMBRE']),
+            ])
             ->findOrFail($convocatoria->CONV_ID);
 
         $ofertas = Oferta::query()

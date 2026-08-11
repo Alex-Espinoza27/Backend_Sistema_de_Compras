@@ -29,7 +29,12 @@ class RegistroProveedorRequest extends FormRequest
             'rubros_servicios.*' => ['integer', 'distinct', Rule::exists('RUBRO', 'RUBR_ID')->where('RUBR_TIPO', 'SERVICIO')],
             'rubros_bienes' => ['array'],
             'rubros_bienes.*' => ['integer', 'distinct', Rule::exists('RUBRO', 'RUBR_ID')->where('RUBR_TIPO', 'BIEN')],
-            'password' => ['required', 'confirmed', Password::defaults()],
+            // max:72 (05C hardening): bcrypt (el hasher por defecto) ignora
+            // en silencio cualquier byte más allá del 72 — permitir más
+            // engaña al usuario haciéndole creer que una contraseña más
+            // larga es más fuerte, y sin tope el campo tampoco tenía límite
+            // de payload.
+            'password' => ['required', 'confirmed', 'max:72', Password::defaults()],
             'captcha' => ['required', 'string'],
             'origen' => ['required', Rule::in(['SUNAT', 'MANUAL'])],
         ];

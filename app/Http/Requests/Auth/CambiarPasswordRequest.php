@@ -16,7 +16,7 @@ class CambiarPasswordRequest extends FormRequest
     {
         return [
             'password_actual' => ['required', 'string'],
-            'password' => ['required', 'confirmed', Password::defaults()],
+            'password' => ['required', 'confirmed', 'max:72', Password::defaults()],
         ];
     }
 }

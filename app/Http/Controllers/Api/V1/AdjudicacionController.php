@@ -36,7 +36,7 @@ class AdjudicacionController extends Controller
 
     public function resultados(int $id): JsonResponse
     {
-        $convocatoria = Convocatoria::select(['CONV_ID', 'CONV_NUMERO', 'CONV_NOMBRE_SERVICIO', 'CONV_ESTADO_ID', 'CONV_OFERTA_ADJUDICADA_ID', 'CONV_MOTIVO_CIERRE', 'CONV_FECHA_RESULTADO'])
+        $convocatoria = Convocatoria::select(['CONV_ID', 'CONV_NUMERO', 'CONV_NUMERO_INDAGACION', 'CONV_NOMBRE_SERVICIO', 'CONV_ESTADO_ID', 'CONV_OFERTA_ADJUDICADA_ID', 'CONV_MOTIVO_CIERRE', 'CONV_FECHA_RESULTADO'])
             ->with(['estado' => fn ($q) => $q->select(['ESTA_ID', 'ESTA_CODIGO', 'ESTA_NOMBRE'])])
             ->findOrFail($id);
 
@@ -66,6 +66,7 @@ class AdjudicacionController extends Controller
         return ApiResponse::success([
             'convocatoria_id' => $convocatoria->CONV_ID,
             'numero' => $convocatoria->CONV_NUMERO,
+            'numero_indagacion' => $convocatoria->CONV_NUMERO_INDAGACION,
             'nombre_servicio' => $convocatoria->CONV_NOMBRE_SERVICIO,
             'estado' => ['codigo' => $convocatoria->estado->ESTA_CODIGO, 'nombre' => $convocatoria->estado->ESTA_NOMBRE],
             'oferta_adjudicada_id' => $convocatoria->CONV_OFERTA_ADJUDICADA_ID,

@@ -21,6 +21,7 @@ class AdjudicacionService
         private ResultadoService $resultadoService,
         private ArchivoService $archivoService,
         private NotificacionService $notificacion,
+        private NumeracionService $numeracion,
     ) {}
 
     public function adjudicar(Convocatoria $convocatoria, ?int $ofertaId): array
@@ -180,6 +181,14 @@ class AdjudicacionService
 
     private function generarYGuardarResultadoPdf(Convocatoria $convocatoria): void
     {
+        // El N.° de "Indagación de Mercado" se genera una sola vez por
+        // convocatoria (correlativo por entidad, 05C hardening pedido
+        // explícitamente por el usuario) y queda fijo para siempre.
+        if (! $convocatoria->CONV_NUMERO_INDAGACION) {
+            $convocatoria->CONV_NUMERO_INDAGACION = $this->numeracion->generarIndagacionMercado($convocatoria->CONV_ENTIDAD_ID);
+            $convocatoria->save();
+        }
+
         $pdf = $this->resultadoService->generarPdf($convocatoria);
         $contenido = $pdf->output();
 

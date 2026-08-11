@@ -14,6 +14,10 @@ use Maatwebsite\Excel\Concerns\WithMapping;
  */
 class ConvocatoriasExport implements FromQuery, WithHeadings, WithMapping
 {
+    /** `$entidadId` opcional (05C hardening) — acota la descarga a una sola
+     * entidad, usado por el portal libre por entidad (`/entidad/{id}`). */
+    public function __construct(private ?int $entidadId = null) {}
+
     public function query(): Builder
     {
         $borradorId = Estado::where('ESTA_CONTEXTO', 'CONVOCATORIA')->where('ESTA_CODIGO', 'BORRADOR')->value('ESTA_ID');
@@ -25,6 +29,7 @@ class ConvocatoriasExport implements FromQuery, WithHeadings, WithMapping
                 'CONV_FECHA_PUBLICACION', 'CONV_FECHA_RESULTADO',
             ])
             ->where('CONV_ESTADO_ID', '!=', $borradorId)
+            ->when($this->entidadId, fn ($q) => $q->where('CONV_ENTIDAD_ID', $this->entidadId))
             ->with([
                 'entidad' => fn ($sub) => $sub->select(['ENTI_ID', 'ENTI_SIGLA']),
                 'estado' => fn ($sub) => $sub->select(['ESTA_ID', 'ESTA_CODIGO']),

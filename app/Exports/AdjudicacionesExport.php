@@ -14,6 +14,10 @@ use Maatwebsite\Excel\Concerns\WithMapping;
  */
 class AdjudicacionesExport implements FromQuery, WithHeadings, WithMapping
 {
+    /** `$entidadId` opcional (05C hardening) — acota la descarga a una sola
+     * entidad, usado por el portal libre por entidad (`/entidad/{id}`). */
+    public function __construct(private ?int $entidadId = null) {}
+
     public function query(): Builder
     {
         $adjudicadaId = Estado::where('ESTA_CONTEXTO', 'CONVOCATORIA')->where('ESTA_CODIGO', 'ADJUDICADA')->value('ESTA_ID');
@@ -21,6 +25,7 @@ class AdjudicacionesExport implements FromQuery, WithHeadings, WithMapping
         return Convocatoria::query()
             ->select(['CONV_ID', 'CONV_NUMERO', 'CONV_NOMBRE_SERVICIO', 'CONV_ENTIDAD_ID', 'CONV_OFERTA_ADJUDICADA_ID', 'CONV_FECHA_RESULTADO'])
             ->where('CONV_ESTADO_ID', $adjudicadaId)
+            ->when($this->entidadId, fn ($q) => $q->where('CONV_ENTIDAD_ID', $this->entidadId))
             ->with([
                 'entidad' => fn ($sub) => $sub->select(['ENTI_ID', 'ENTI_SIGLA']),
                 'ofertaAdjudicada' => fn ($sub) => $sub->select(['OFER_ID', 'OFER_PROVEEDOR_ID', 'OFER_TOTAL_GENERAL'])
