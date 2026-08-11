@@ -10,6 +10,7 @@ use App\Models\Configuracion;
 use App\Models\Convocatoria;
 use App\Models\Estado;
 use App\Models\Oferta;
+use App\Models\Requerimiento;
 use App\Models\RequerimientoItem;
 use App\Models\TipoComprobante;
 use App\Services\ConstanciaService;
@@ -39,9 +40,11 @@ class OfertaController extends Controller
         $this->ofertaService->validarProveedorActivo($proveedor);
         $this->ofertaService->validarSinOfertaPrevia($convocatoria, $proveedor);
 
+        $tipo = Requerimiento::where('REQU_ID', $convocatoria->CONV_REQUERIMIENTO_ID)->value('REQU_TIPO');
+
         $plantillaDj = $this->resolverPlantillaDj($convocatoria);
 
-        $items = RequerimientoItem::select(['REIT_ID', 'REIT_NUMERO', 'REIT_DESCRIPCION', 'REIT_UNIDAD_MEDIDA_ID', 'REIT_CANTIDAD'])
+        $items = RequerimientoItem::select(['REIT_ID', 'REIT_NUMERO', 'REIT_DESCRIPCION', 'REIT_UNIDAD_MEDIDA_ID', 'REIT_CANTIDAD', 'REIT_PRESENTACION'])
             ->where('REIT_REQUERIMIENTO_ID', $convocatoria->CONV_REQUERIMIENTO_ID)
             ->with(['unidadMedida' => fn ($q) => $q->select(['UNME_ID', 'UNME_CODIGO'])])
             ->orderBy('REIT_NUMERO')
@@ -52,6 +55,7 @@ class OfertaController extends Controller
                 'descripcion' => $item->REIT_DESCRIPCION,
                 'unidad_medida' => $item->unidadMedida->UNME_CODIGO,
                 'cantidad' => $item->REIT_CANTIDAD,
+                'presentacion' => $item->REIT_PRESENTACION,
             ]);
 
         $tiposComprobante = TipoComprobante::select(['TICO_ID', 'TICO_CODIGO', 'TICO_NOMBRE'])
@@ -63,6 +67,7 @@ class OfertaController extends Controller
                 'convocatoria_id' => $convocatoria->CONV_ID,
                 'numero' => $convocatoria->CONV_NUMERO,
                 'nombre_servicio' => $convocatoria->CONV_NOMBRE_SERVICIO,
+                'tipo' => $tipo,
                 'fecha_fin' => $convocatoria->CONV_FECHA_FIN,
             ],
             'plantilla_dj' => $plantillaDj,
@@ -80,7 +85,7 @@ class OfertaController extends Controller
             $request->validated(),
             [
                 'declaracion_jurada' => $request->file('declaracion_jurada'),
-                'sustentos' => $request->file('sustentos'),
+                'sustento' => $request->file('sustento'),
             ],
             $proveedor,
         );
@@ -101,6 +106,7 @@ class OfertaController extends Controller
         $query = Oferta::query()
             ->select(['OFER_ID', 'OFER_CONVOCATORIA_ID', 'OFER_TOTAL_GENERAL', 'OFER_ESTADO_ID', 'OFER_FECHA_ENVIO'])
             ->where('OFER_PROVEEDOR_ID', $proveedor->PROV_ID)
+            ->when($request->filled('convocatoria_id'), fn ($q) => $q->where('OFER_CONVOCATORIA_ID', $request->integer('convocatoria_id')))
             ->when($request->filled('estado'), function ($q) use ($request) {
                 $estadoId = Estado::where('ESTA_CONTEXTO', 'OFERTA')->where('ESTA_CODIGO', $request->input('estado'))->value('ESTA_ID');
                 $q->where('OFER_ESTADO_ID', $estadoId);

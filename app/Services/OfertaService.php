@@ -7,7 +7,6 @@ use App\Models\Estado;
 use App\Models\Oferta;
 use App\Models\OfertaItem;
 use App\Models\Proveedor;
-use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\DB;
 use Symfony\Component\HttpKernel\Exception\HttpException;
 
@@ -21,6 +20,7 @@ class OfertaService
     public function __construct(
         private ArchivoService $archivoService,
         private AuditoriaService $auditoria,
+        private NumeracionService $numeracionService,
     ) {}
 
     public function validarConvocatoriaVigente(Convocatoria $convocatoria): void
@@ -74,7 +74,7 @@ class OfertaService
                 'OFER_CONVOCATORIA_ID' => $convocatoria->CONV_ID,
                 'OFER_PROVEEDOR_ID' => $proveedor->PROV_ID,
                 'OFER_ESTADO_ID' => $estadoEnviadaId,
-                'OFER_TIPO_COMPROBANTE_ID' => $datos['tipo_comprobante_id'],
+                'OFER_TIPO_COMPROBANTE_ID' => $datos['tipo_comprobante_id'] ?? null,
                 'OFER_TOTAL_GENERAL' => 0,
                 'OFER_VALIDEZ_DIAS' => $datos['validez_dias'],
                 'OFER_PLAZO_EJECUCION_SEGUN_TDR' => $segunTdrEjecucion,
@@ -101,13 +101,9 @@ class OfertaService
             $oferta->refresh();
 
             $this->archivoService->subir($archivos['declaracion_jurada'], 'OFERTA_DJ', $oferta->OFER_ID);
+            $this->archivoService->subir($archivos['sustento'], 'OFERTA_SUSTENTO', $oferta->OFER_ID);
 
-            /** @var UploadedFile $sustento */
-            foreach ($archivos['sustentos'] as $sustento) {
-                $this->archivoService->subir($sustento, 'OFERTA_SUSTENTO', $oferta->OFER_ID);
-            }
-
-            $oferta->OFER_CONSTANCIA_CODIGO = sprintf('CP-%06d-%d', $oferta->OFER_ID, now()->year);
+            $oferta->OFER_CONSTANCIA_CODIGO = $this->numeracionService->generarOferta($proveedor->PROV_ID);
             $oferta->save();
 
             $this->auditoria->registrar('OFERTAS', 'CREAR', 'OFERTA', $oferta->OFER_ID);

@@ -20,7 +20,14 @@ class OfertaStoreRequest extends FormRequest
 
         return [
             'convocatoria_id' => ['required', 'integer', Rule::exists('CONVOCATORIA', 'CONV_ID')],
-            'tipo_comprobante_id' => ['required', 'integer', Rule::exists('TIPO_COMPROBANTE', 'TICO_ID')],
+            // Comprobante de pago: solo se exige para convocatorias de tipo
+            // SERVICIO (05C hardening — decisión explícita del usuario,
+            // desviación consciente de `00_CONTEXTO_TDR.md` §6, documentada
+            // en `05C_FRONTEND_FASES.md`).
+            'tipo_comprobante_id' => [
+                Rule::requiredIf(fn () => $this->tipoConvocatoria() === 'SERVICIO'),
+                'nullable', 'integer', Rule::exists('TIPO_COMPROBANTE', 'TICO_ID'),
+            ],
             'items' => ['required', 'array', 'min:1'],
             'items.*.requerimiento_item_id' => ['required', 'integer', Rule::exists('REQUERIMIENTO_ITEM', 'REIT_ID')],
             'items.*.marca_modelo' => ['required', 'string', 'max:150'],
@@ -35,9 +42,25 @@ class OfertaStoreRequest extends FormRequest
             'contacto_telefono' => ['required', 'string', 'max:20'],
             'contacto_correo' => ['required', 'email', 'max:120'],
             'declaracion_jurada' => ['required', 'file', 'mimes:pdf,doc,docx', 'max:'.$maxKb],
-            'sustentos' => ['required', 'array', 'min:1'],
-            'sustentos.*' => ['file', 'mimes:pdf,doc,docx', 'max:'.$maxKb],
+            // Un solo archivo de sustento (05C hardening: antes admitía
+            // varios, pero la nota mostrada al proveedor siempre dijo "un
+            // único archivo" — se resuelve la inconsistencia aceptando
+            // exactamente lo que se comunica).
+            'sustento' => ['required', 'file', 'mimes:pdf,doc,docx', 'max:'.$maxKb],
         ];
+    }
+
+    private function tipoConvocatoria(): ?string
+    {
+        $convocatoriaId = $this->input('convocatoria_id');
+
+        if (! $convocatoriaId) {
+            return null;
+        }
+
+        $requerimientoId = DB::table('CONVOCATORIA')->where('CONV_ID', $convocatoriaId)->value('CONV_REQUERIMIENTO_ID');
+
+        return $requerimientoId ? DB::table('REQUERIMIENTO')->where('REQU_ID', $requerimientoId)->value('REQU_TIPO') : null;
     }
 
     public function withValidator(Validator $validator): void
