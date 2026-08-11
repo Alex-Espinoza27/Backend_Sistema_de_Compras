@@ -5,11 +5,11 @@ use App\Http\Controllers\Api\V1\AdminCatalogoController;
 use App\Http\Controllers\Api\V1\AdminConfiguracionController;
 use App\Http\Controllers\Api\V1\AdminProveedorController;
 use App\Http\Controllers\Api\V1\AdminRolController;
-use App\Http\Controllers\Api\V1\AdminUsuarioController;
 use App\Http\Controllers\Api\V1\ArchivoController;
 use App\Http\Controllers\Api\V1\AuditoriaController;
 use App\Http\Controllers\Api\V1\AuthController;
 use App\Http\Controllers\Api\V1\ConvocatoriaController;
+use App\Http\Controllers\Api\V1\GestionUsuariosController;
 use App\Http\Controllers\Api\V1\DashboardController;
 use App\Http\Controllers\Api\V1\DatosAbiertosController;
 use App\Http\Controllers\Api\V1\EntidadController;
@@ -19,6 +19,8 @@ use App\Http\Controllers\Api\V1\OfertaController;
 use App\Http\Controllers\Api\V1\ProveedorController;
 use App\Http\Controllers\Api\V1\PublicoController;
 use App\Http\Controllers\Api\V1\ReporteController;
+use App\Http\Controllers\Api\V1\AreaController;
+use App\Http\Controllers\Api\V1\PresentacionOfertasController;
 use App\Http\Controllers\Api\V1\RequerimientoController;
 use App\Support\ApiResponse;
 use Illuminate\Support\Facades\Route;
@@ -54,8 +56,10 @@ Route::prefix('v1')->middleware('throttle:api')->group(function () {
     Route::prefix('publico')->middleware('throttle:publico')->group(function () {
         Route::get('/entidades', [PublicoController::class, 'entidades']);
         Route::post('/entidades/solicitud', [PublicoController::class, 'solicitudEntidad']);
+        Route::get('/rubros', [PublicoController::class, 'rubros']);
         Route::get('/convocatorias', [PublicoController::class, 'convocatorias']);
         Route::get('/convocatorias/{id}', [PublicoController::class, 'convocatoria'])->whereNumber('id');
+        Route::get('/convocatorias/{id}/tdr', [PublicoController::class, 'tdr'])->whereNumber('id');
         Route::get('/convocatorias/{id}/resultados.pdf', [PublicoController::class, 'resultadosPdf'])->whereNumber('id');
     });
 
@@ -69,13 +73,19 @@ Route::prefix('v1')->middleware('throttle:api')->group(function () {
 
     Route::prefix('requerimientos')->middleware('auth:sanctum')->group(function () {
         Route::get('/combo', [RequerimientoController::class, 'combo'])->middleware('permission:convocatorias.crear');
+        Route::get('/unidades-medida', [RequerimientoController::class, 'unidadesMedida'])->middleware('permission:requerimientos.ver');
         Route::get('/', [RequerimientoController::class, 'index'])->middleware('permission:requerimientos.ver');
         Route::get('/{id}', [RequerimientoController::class, 'show'])->whereNumber('id')->middleware('permission:requerimientos.ver');
         Route::post('/', [RequerimientoController::class, 'store'])->middleware('permission:requerimientos.crear');
         Route::put('/{id}', [RequerimientoController::class, 'update'])->whereNumber('id')->middleware('permission:requerimientos.editar');
         Route::delete('/{id}', [RequerimientoController::class, 'destroy'])->whereNumber('id')->middleware('permission:requerimientos.eliminar');
-        Route::post('/{id}/tdr', [RequerimientoController::class, 'subirTdr'])->whereNumber('id')->middleware('permission:requerimientos.editar');
         Route::delete('/{id}/tdr/{archivoId}', [RequerimientoController::class, 'eliminarTdr'])->whereNumber(['id', 'archivoId'])->middleware('permission:requerimientos.editar');
+    });
+
+    Route::prefix('areas')->middleware('auth:sanctum')->group(function () {
+        Route::get('/', [AreaController::class, 'index'])->middleware('permission:areas.ver');
+        Route::post('/', [AreaController::class, 'store'])->middleware('permission:areas.gestionar');
+        Route::put('/{id}', [AreaController::class, 'update'])->whereNumber('id')->middleware('permission:areas.gestionar');
     });
 
     Route::prefix('convocatorias')->middleware('auth:sanctum')->group(function () {
@@ -83,7 +93,6 @@ Route::prefix('v1')->middleware('throttle:api')->group(function () {
         Route::get('/{id}', [ConvocatoriaController::class, 'show'])->whereNumber('id')->middleware('permission:convocatorias.ver');
         Route::post('/', [ConvocatoriaController::class, 'store'])->middleware('permission:convocatorias.crear');
         Route::put('/{id}', [ConvocatoriaController::class, 'update'])->whereNumber('id')->middleware('permission:convocatorias.editar');
-        Route::post('/{id}/plantilla-dj', [ConvocatoriaController::class, 'subirPlantillaDj'])->whereNumber('id')->middleware('permission:convocatorias.editar');
         Route::delete('/{id}/plantilla-dj/{archivoId}', [ConvocatoriaController::class, 'eliminarPlantillaDj'])->whereNumber(['id', 'archivoId'])->middleware('permission:convocatorias.editar');
         Route::post('/{id}/publicar', [ConvocatoriaController::class, 'publicar'])->whereNumber('id')->middleware('permission:convocatorias.publicar');
         Route::post('/{id}/cancelar', [ConvocatoriaController::class, 'cancelar'])->whereNumber('id')->middleware('permission:convocatorias.cancelar');
@@ -93,6 +102,11 @@ Route::prefix('v1')->middleware('throttle:api')->group(function () {
         Route::post('/{id}/adjudicar', [AdjudicacionController::class, 'adjudicar'])->whereNumber('id')->middleware('permission:adjudicacion.adjudicar');
         Route::post('/{id}/desierta', [AdjudicacionController::class, 'desierta'])->whereNumber('id')->middleware('permission:adjudicacion.declarar_desierta');
         Route::get('/{id}/resultados', [AdjudicacionController::class, 'resultados'])->whereNumber('id')->middleware('permission:adjudicacion.ver');
+    });
+
+    Route::prefix('presentacion-ofertas')->middleware('auth:sanctum')->group(function () {
+        Route::get('/', [PresentacionOfertasController::class, 'index'])->middleware('permission:presentacion_ofertas.ver');
+        Route::get('/{id}', [PresentacionOfertasController::class, 'show'])->whereNumber('id')->middleware('permission:presentacion_ofertas.ver');
     });
 
     Route::prefix('ofertas')->middleware(['auth:sanctum', 'role:PROVEEDOR'])->group(function () {
@@ -148,17 +162,27 @@ Route::prefix('v1')->middleware('throttle:api')->group(function () {
     });
 
     Route::prefix('admin')->middleware('auth:sanctum')->group(function () {
-        Route::get('/usuarios', [AdminUsuarioController::class, 'index'])->middleware('permission:administracion.usuarios');
-        Route::post('/usuarios', [AdminUsuarioController::class, 'store'])->middleware('permission:administracion.usuarios');
-        Route::get('/usuarios/{id}', [AdminUsuarioController::class, 'show'])->whereNumber('id')->middleware('permission:administracion.usuarios');
-        Route::put('/usuarios/{id}', [AdminUsuarioController::class, 'update'])->whereNumber('id')->middleware('permission:administracion.usuarios');
-        Route::delete('/usuarios/{id}', [AdminUsuarioController::class, 'destroy'])->whereNumber('id')->middleware('permission:administracion.usuarios');
+        // Usuarios de plataforma (05C hardening — módulo unificado: internos + Entidad, ver GestionUsuariosController).
+        Route::get('/usuarios-plataforma', [GestionUsuariosController::class, 'index'])->middleware('permission:gestion_usuarios.ver');
+        Route::post('/usuarios-plataforma', [GestionUsuariosController::class, 'store'])->middleware('permission:gestion_usuarios.gestionar');
+        Route::get('/usuarios-plataforma/{id}', [GestionUsuariosController::class, 'show'])->whereNumber('id')->middleware('permission:gestion_usuarios.ver');
+        Route::put('/usuarios-plataforma/{id}', [GestionUsuariosController::class, 'update'])->whereNumber('id')->middleware('permission:gestion_usuarios.gestionar');
+        Route::delete('/usuarios-plataforma/{id}', [GestionUsuariosController::class, 'destroy'])->whereNumber('id')->middleware('permission:gestion_usuarios.gestionar');
 
-        Route::post('/proveedores/{id}/reactivar', [AdminProveedorController::class, 'reactivar'])->whereNumber('id')->middleware('permission:administracion.proveedores');
+        // Acepta también reportes.ver: AUDITOR/ENTIDAD no tienen gestion_proveedores.ver
+        // pero sí necesitan este listado como combo del filtro proveedor_id en Reportes (J2).
+        Route::get('/proveedores', [AdminProveedorController::class, 'index'])->middleware('permission:gestion_proveedores.ver|reportes.ver');
+        Route::get('/proveedores/{id}', [AdminProveedorController::class, 'show'])->whereNumber('id')->middleware('permission:gestion_proveedores.ver');
+        Route::post('/proveedores', [AdminProveedorController::class, 'store'])->middleware('permission:gestion_proveedores.gestionar');
+        Route::put('/proveedores/{id}', [AdminProveedorController::class, 'update'])->whereNumber('id')->middleware('permission:gestion_proveedores.gestionar');
+        Route::post('/proveedores/{id}/reactivar', [AdminProveedorController::class, 'reactivar'])->whereNumber('id')->middleware('permission:gestion_proveedores.gestionar');
+        Route::post('/proveedores/{id}/suspender', [AdminProveedorController::class, 'suspender'])->whereNumber('id')->middleware('permission:gestion_proveedores.gestionar');
 
-        Route::get('/roles', [AdminRolController::class, 'roles'])->middleware('permission:administracion.roles');
-        Route::get('/permisos', [AdminRolController::class, 'permisos'])->middleware('permission:administracion.roles');
-        Route::put('/roles/{rol}/permisos', [AdminRolController::class, 'actualizarPermisos'])->middleware('permission:administracion.roles');
+        Route::get('/roles', [AdminRolController::class, 'roles'])->middleware('permission:roles_permisos.ver');
+        Route::get('/permisos', [AdminRolController::class, 'permisos'])->middleware('permission:roles_permisos.ver');
+        Route::post('/roles', [AdminRolController::class, 'crear'])->middleware('permission:roles_permisos.gestionar');
+        Route::put('/roles/{rol}/permisos', [AdminRolController::class, 'actualizarPermisos'])->middleware('permission:roles_permisos.gestionar');
+        Route::delete('/roles/{rol}', [AdminRolController::class, 'eliminar'])->middleware('permission:roles_permisos.gestionar');
 
         Route::get('/configuracion', [AdminConfiguracionController::class, 'index'])->middleware('permission:administracion.configuracion');
         Route::put('/configuracion', [AdminConfiguracionController::class, 'update'])->middleware('permission:administracion.configuracion');

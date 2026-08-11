@@ -150,20 +150,39 @@ class ProduccionSeeder extends Seeder
 
     private function seedModulo(): void
     {
+        // Orden pedido por el usuario (Fase 12 frontend): Dashboard primero,
+        // luego el flujo troncal ("core"), luego gestión de actores,
+        // luego transversales de solo lectura, y Administración al final
+        // (agrupa mantenimiento de catálogos + usuarios + roles y permisos).
         $filas = [
-            ['MODU_CODIGO' => 'ADMINISTRACION', 'MODU_NOMBRE' => 'Administración', 'MODU_ICONO' => 'mdi-cog', 'MODU_ORDEN' => 1],
-            ['MODU_CODIGO' => 'ENTIDADES', 'MODU_NOMBRE' => 'Entidades', 'MODU_ICONO' => 'mdi-domain', 'MODU_ORDEN' => 2],
-            ['MODU_CODIGO' => 'PROVEEDORES', 'MODU_NOMBRE' => 'Proveedores', 'MODU_ICONO' => 'mdi-truck', 'MODU_ORDEN' => 3],
-            ['MODU_CODIGO' => 'REQUERIMIENTOS', 'MODU_NOMBRE' => 'Requerimientos', 'MODU_ICONO' => 'mdi-clipboard-list', 'MODU_ORDEN' => 4],
-            ['MODU_CODIGO' => 'CONVOCATORIAS', 'MODU_NOMBRE' => 'Convocatorias', 'MODU_ICONO' => 'mdi-bullhorn', 'MODU_ORDEN' => 5],
-            ['MODU_CODIGO' => 'OFERTAS', 'MODU_NOMBRE' => 'Ofertas', 'MODU_ICONO' => 'mdi-file-document', 'MODU_ORDEN' => 6],
+            ['MODU_CODIGO' => 'DASHBOARD', 'MODU_NOMBRE' => 'Dashboard', 'MODU_ICONO' => 'mdi-view-dashboard', 'MODU_ORDEN' => 1],
+            ['MODU_CODIGO' => 'REQUERIMIENTOS', 'MODU_NOMBRE' => 'Requerimientos', 'MODU_ICONO' => 'mdi-clipboard-list', 'MODU_ORDEN' => 2],
+            ['MODU_CODIGO' => 'AREAS', 'MODU_NOMBRE' => 'Áreas', 'MODU_ICONO' => 'mdi-office-building-outline', 'MODU_ORDEN' => 3],
+            ['MODU_CODIGO' => 'CONVOCATORIAS', 'MODU_NOMBRE' => 'Convocatorias', 'MODU_ICONO' => 'mdi-bullhorn', 'MODU_ORDEN' => 4],
+            // M06/M07/M08 del TDR (00_CONTEXTO_TDR.md §4), separados de vuelta
+            // en sus propios módulos de nivel superior (05C hardening —
+            // estaban fusionados en un solo "Convocatorias" desde la Fase 11).
+            ['MODU_CODIGO' => 'PRESENTACION_OFERTAS', 'MODU_NOMBRE' => 'Presentación de Ofertas', 'MODU_ICONO' => 'mdi-file-document-multiple-outline', 'MODU_ORDEN' => 5],
+            ['MODU_CODIGO' => 'OFERTAS', 'MODU_NOMBRE' => 'Ver Convocatorias', 'MODU_ICONO' => 'mdi-file-document', 'MODU_ORDEN' => 6],
             ['MODU_CODIGO' => 'EVALUACION', 'MODU_NOMBRE' => 'Evaluación', 'MODU_ICONO' => 'mdi-clipboard-check', 'MODU_ORDEN' => 7],
             ['MODU_CODIGO' => 'ADJUDICACION', 'MODU_NOMBRE' => 'Adjudicación', 'MODU_ICONO' => 'mdi-gavel', 'MODU_ORDEN' => 8],
-            ['MODU_CODIGO' => 'REPORTES', 'MODU_NOMBRE' => 'Reportes', 'MODU_ICONO' => 'mdi-chart-bar', 'MODU_ORDEN' => 9],
-            ['MODU_CODIGO' => 'DASHBOARD', 'MODU_NOMBRE' => 'Dashboard', 'MODU_ICONO' => 'mdi-view-dashboard', 'MODU_ORDEN' => 10],
-            ['MODU_CODIGO' => 'AUDITORIA', 'MODU_NOMBRE' => 'Auditoría', 'MODU_ICONO' => 'mdi-history', 'MODU_ORDEN' => 11],
-            ['MODU_CODIGO' => 'DATOS_ABIERTOS', 'MODU_NOMBRE' => 'Datos Abiertos', 'MODU_ICONO' => 'mdi-database', 'MODU_ORDEN' => 12],
-            ['MODU_CODIGO' => 'NOTIFICACIONES', 'MODU_NOMBRE' => 'Notificaciones', 'MODU_ICONO' => 'mdi-bell', 'MODU_ORDEN' => 13],
+            ['MODU_CODIGO' => 'ENTIDADES', 'MODU_NOMBRE' => 'Entidades', 'MODU_ICONO' => 'mdi-domain', 'MODU_ORDEN' => 9],
+            // GESTION_PROVEEDORES (05C hardening) es distinto del código
+            // legado `PROVEEDORES` (permisos proveedores.*_propio del propio
+            // proveedor, siempre excluido del menú — ver AuthController::
+            // construirMe) para no chocar con ese prefijo de permiso.
+            ['MODU_CODIGO' => 'GESTION_PROVEEDORES', 'MODU_NOMBRE' => 'Proveedores', 'MODU_ICONO' => 'mdi-truck', 'MODU_ORDEN' => 10],
+            ['MODU_CODIGO' => 'PROVEEDORES', 'MODU_NOMBRE' => 'Proveedores', 'MODU_ICONO' => 'mdi-truck', 'MODU_ORDEN' => 11],
+            ['MODU_CODIGO' => 'REPORTES', 'MODU_NOMBRE' => 'Reportes', 'MODU_ICONO' => 'mdi-chart-bar', 'MODU_ORDEN' => 12],
+            ['MODU_CODIGO' => 'AUDITORIA', 'MODU_NOMBRE' => 'Auditoría', 'MODU_ICONO' => 'mdi-history', 'MODU_ORDEN' => 13],
+            ['MODU_CODIGO' => 'DATOS_ABIERTOS', 'MODU_NOMBRE' => 'Datos Abiertos', 'MODU_ICONO' => 'mdi-database', 'MODU_ORDEN' => 14],
+            ['MODU_CODIGO' => 'NOTIFICACIONES', 'MODU_NOMBRE' => 'Notificaciones', 'MODU_ICONO' => 'mdi-bell', 'MODU_ORDEN' => 15],
+            ['MODU_CODIGO' => 'GESTION_USUARIOS', 'MODU_NOMBRE' => 'Usuarios', 'MODU_ICONO' => 'mdi-account-multiple-outline', 'MODU_ORDEN' => 16],
+            ['MODU_CODIGO' => 'ROLES_PERMISOS', 'MODU_NOMBRE' => 'Roles y Permisos', 'MODU_ICONO' => 'mdi-shield-account-outline', 'MODU_ORDEN' => 17],
+            // Antes "Administración": tras separar Proveedores/Usuarios/Roles
+            // en sus propios módulos (05C hardening), solo queda
+            // Catálogos+Configuración/UIT — el nombre pasa a "Configuración".
+            ['MODU_CODIGO' => 'ADMINISTRACION', 'MODU_NOMBRE' => 'Configuración', 'MODU_ICONO' => 'mdi-cog', 'MODU_ORDEN' => 18],
         ];
 
         foreach ($filas as $fila) {
@@ -176,7 +195,9 @@ class ProduccionSeeder extends Seeder
         $permisos = [
             'proveedores.ver_propio', 'proveedores.editar_propio', 'proveedores.suspender_propio',
             'requerimientos.ver', 'requerimientos.crear', 'requerimientos.editar', 'requerimientos.eliminar',
+            'areas.ver', 'areas.gestionar',
             'convocatorias.ver', 'convocatorias.crear', 'convocatorias.editar', 'convocatorias.publicar', 'convocatorias.cancelar',
+            'presentacion_ofertas.ver',
             'ofertas.ver', 'ofertas.crear', 'ofertas.retirar',
             'entidades.ver', 'entidades.aprobar', 'entidades.gestionar',
             'evaluacion.ver', 'evaluacion.evaluar',
@@ -184,7 +205,10 @@ class ProduccionSeeder extends Seeder
             'dashboard.ver',
             'reportes.ver', 'reportes.exportar',
             'auditoria.ver',
-            'administracion.usuarios', 'administracion.proveedores', 'administracion.roles', 'administracion.configuracion', 'administracion.catalogos',
+            'gestion_proveedores.ver', 'gestion_proveedores.gestionar',
+            'roles_permisos.ver', 'roles_permisos.gestionar',
+            'gestion_usuarios.ver', 'gestion_usuarios.gestionar',
+            'administracion.configuracion', 'administracion.catalogos',
         ];
 
         foreach ($permisos as $permiso) {
@@ -198,13 +222,15 @@ class ProduccionSeeder extends Seeder
         $auditor->syncPermissions([
             'entidades.ver', 'evaluacion.ver', 'adjudicacion.ver', 'dashboard.ver',
             'reportes.ver', 'reportes.exportar', 'auditoria.ver',
-            'convocatorias.ver', 'requerimientos.ver',
+            'convocatorias.ver', 'requerimientos.ver', 'presentacion_ofertas.ver',
         ]);
 
         $entidad = Role::findOrCreate('ENTIDAD', 'web');
         $entidad->syncPermissions([
             'requerimientos.ver', 'requerimientos.crear', 'requerimientos.editar', 'requerimientos.eliminar',
+            'areas.ver', 'areas.gestionar',
             'convocatorias.ver', 'convocatorias.crear', 'convocatorias.editar', 'convocatorias.publicar', 'convocatorias.cancelar',
+            'presentacion_ofertas.ver',
             'evaluacion.ver', 'evaluacion.evaluar',
             'adjudicacion.ver', 'adjudicacion.adjudicar', 'adjudicacion.declarar_desierta',
             'dashboard.ver', 'reportes.ver', 'reportes.exportar',
@@ -214,6 +240,7 @@ class ProduccionSeeder extends Seeder
         $proveedor->syncPermissions([
             'proveedores.ver_propio', 'proveedores.editar_propio', 'proveedores.suspender_propio',
             'ofertas.ver', 'ofertas.crear', 'ofertas.retirar',
+            'dashboard.ver',
         ]);
     }
 
