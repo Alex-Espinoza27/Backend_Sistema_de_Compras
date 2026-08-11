@@ -43,7 +43,12 @@ class ReporteController extends Controller
             page: $request->integer('pagina', 1),
         );
 
-        $paginador->getCollection()->transform(fn ($fila) => $this->reporteService->mapearFila($filtros['tipo'], $fila));
+        // El id (`convocatoria_id`/`oferta_id`) no vive en `mapearFila()` —
+        // debe quedar 1:1 con `cabeceras()` para que XLSX/PDF no se
+        // desalineen — se agrega aquí solo para el JSON, como `item-value`
+        // de la tabla del frontend.
+        $idKey = $filtros['tipo'] === 'POR_PROVEEDOR' ? 'oferta_id' : 'convocatoria_id';
+        $paginador->getCollection()->transform(fn ($fila) => [$idKey => $fila->getKey()] + $this->reporteService->mapearFila($filtros['tipo'], $fila));
 
         return ApiResponse::paginado($paginador);
     }
@@ -70,7 +75,7 @@ class ReporteController extends Controller
             'tipo' => $filtros['tipo'],
             'cabeceras' => $this->reporteService->cabeceras($filtros['tipo']),
             'filas' => $filas,
-        ]);
+        ])->setPaper('a4', 'landscape');
 
         return $pdf->stream('reporte-'.strtolower($filtros['tipo']).'.pdf');
     }
