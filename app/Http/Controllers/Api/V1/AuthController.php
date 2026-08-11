@@ -205,6 +205,18 @@ class AuthController extends Controller
         $modulosPermitidos = $permisos
             ->map(fn (string $permiso) => strtoupper(explode('.', $permiso)[0]))
             ->unique()
+            // EVALUACION/ADJUDICACION/PRESENTACION_OFERTAS SÍ tienen pantalla
+            // propia de nivel superior (M06/M07/M08 del TDR, 00_CONTEXTO_TDR.md
+            // §4) desde el Bloque E de este hardening — ya no se excluyen.
+            // PROVEEDORES se excluye siempre para cualquier rol: la ficha
+            // propia del proveedor ya se accede desde "Mis datos" en el menú
+            // de perfil (AppBar.vue), un ítem de sidebar aparte es 100%
+            // redundante. OFERTAS es del PROVEEDOR: ADMINISTRADOR tiene el
+            // permiso porque el rol reúne todos los permisos del sistema,
+            // pero el backend exige `role:PROVEEDOR` en la ruta — sin este
+            // filtro, ADMINISTRADOR veía el ítem y la pantalla le devolvía 403.
+            ->reject(fn (string $codigo) => $codigo === 'PROVEEDORES')
+            ->reject(fn (string $codigo) => $codigo === 'OFERTAS' && $rol !== 'PROVEEDOR')
             ->values();
 
         $menu = Modulo::whereIn('MODU_CODIGO', $modulosPermitidos)
