@@ -24,6 +24,9 @@ RUN apt-get update && apt-get install -y \
 
 COPY --from=composer:2 /usr/bin/composer /usr/bin/composer
 
+COPY docker/app/opcache-dev.ini /usr/local/etc/php/conf.d/zz-opcache-dev.ini
+COPY docker/app/uploads.ini /usr/local/etc/php/conf.d/zz-uploads.ini
+
 WORKDIR /var/www/html
 
 COPY docker/app/entrypoint.sh /usr/local/bin/entrypoint.sh
