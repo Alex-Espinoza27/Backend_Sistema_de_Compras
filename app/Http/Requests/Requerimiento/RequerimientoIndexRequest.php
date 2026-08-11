@@ -17,9 +17,13 @@ class RequerimientoIndexRequest extends FormRequest
         return [
             'buscar' => ['nullable', 'string', 'max:150'],
             'tipo' => ['nullable', Rule::in(['BIEN', 'SERVICIO'])],
-            'rubro_id' => ['nullable', 'integer', Rule::exists('RUBRO', 'RUBR_ID')],
+            'rubro_ids' => ['nullable', 'array'],
+            'rubro_ids.*' => ['integer', Rule::exists('RUBRO', 'RUBR_ID')],
             'convocado' => ['nullable', Rule::in(['true', 'false', '1', '0'])],
-            'ordenar_por' => ['nullable', Rule::in(['numero', 'objeto', 'tipo'])],
+            // Solo con efecto para ADMINISTRADOR/AUDITOR (05C hardening).
+            'entidad_id' => ['nullable', 'integer', Rule::exists('ENTIDAD', 'ENTI_ID')],
+            'ordenar_por' => ['nullable', Rule::in(['numero', 'objeto', 'tipo', 'fecha_creacion'])],
+            'direccion' => ['nullable', Rule::in(['asc', 'desc'])],
             'pagina' => ['nullable', 'integer', 'min:1'],
             'por_pagina' => ['nullable', 'integer', 'min:1', 'max:100'],
         ];

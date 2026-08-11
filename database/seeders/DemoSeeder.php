@@ -324,6 +324,8 @@ class DemoSeeder extends Seeder
 
             $entidad->ENTI_CORRELATIVO_CONVOCATORIA = $correlativo;
             $entidad->ENTI_CORRELATIVO_ANIO = now()->year;
+            $entidad->ENTI_CORRELATIVO_REQUERIMIENTO = $i + 1;
+            $entidad->ENTI_CORRELATIVO_REQUERIMIENTO_ANIO = now()->year;
             $entidad->save();
 
             $convocatorias[$def['conv_estado']] = ['convocatoria' => $convocatoria, 'items' => $itemsCreados];

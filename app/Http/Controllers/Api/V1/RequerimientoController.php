@@ -6,9 +6,10 @@ use App\Http\Controllers\Controller;
 use App\Http\Requests\Requerimiento\RequerimientoIndexRequest;
 use App\Http\Requests\Requerimiento\RequerimientoStoreRequest;
 use App\Http\Requests\Requerimiento\RequerimientoUpdateRequest;
-use App\Http\Requests\Requerimiento\SubirTdrRequest;
 use App\Models\Archivo;
 use App\Models\Requerimiento;
+use App\Models\Rubro;
+use App\Models\UnidadMedida;
 use App\Services\ArchivoService;
 use App\Services\RequerimientoService;
 use App\Support\ApiResponse;
@@ -29,10 +30,13 @@ class RequerimientoController extends Controller
             'numero' => 'REQU_NUMERO',
             'objeto' => 'REQU_OBJETO',
             'tipo' => 'REQU_TIPO',
+            'fecha_creacion' => 'REQU_CREADO_EN',
         ][$request->input('ordenar_por', 'numero')] ?? 'REQU_NUMERO';
 
+        $esAdminOAuditor = $request->user()->hasAnyRole(['ADMINISTRADOR', 'AUDITOR']);
+
         $query = Requerimiento::query()
-            ->select(['REQU_ID', 'REQU_RUBRO_ID', 'REQU_NUMERO', 'REQU_OBJETO', 'REQU_TIPO', 'REQU_AREA_USUARIA'])
+            ->select(['REQU_ID', 'REQU_ENTIDAD_ID', 'REQU_NUMERO', 'REQU_OBJETO', 'REQU_TIPO', 'REQU_AREA_ID', 'REQU_CREADO_EN'])
             ->withCount(['items as cantidad_items', 'convocatorias as convocatorias_count'])
             ->when($request->filled('buscar'), function ($q) use ($request) {
                 $buscar = $request->string('buscar');
@@ -41,14 +45,23 @@ class RequerimientoController extends Controller
                 });
             })
             ->when($request->filled('tipo'), fn ($q) => $q->where('REQU_TIPO', $request->input('tipo')))
-            ->when($request->filled('rubro_id'), fn ($q) => $q->where('REQU_RUBRO_ID', $request->integer('rubro_id')))
+            ->when($request->filled('rubro_ids'), function ($q) use ($request) {
+                $q->whereHas('rubros', fn ($sub) => $sub->whereIn('RUBR_ID', $request->input('rubro_ids')));
+            })
             ->when($request->filled('convocado'), function ($q) use ($request) {
                 filter_var($request->input('convocado'), FILTER_VALIDATE_BOOLEAN)
                     ? $q->whereHas('convocatorias')
                     : $q->whereDoesntHave('convocatorias');
             })
-            ->with(['rubro' => fn ($q) => $q->select(['RUBR_ID', 'RUBR_NOMBRE'])])
-            ->orderBy($columnaOrden);
+            // Solo ADMINISTRADOR/AUDITOR pueden filtrar por entidad (05C
+            // hardening): para ENTIDAD el scope real ya lo aplica `DeSuEntidad`.
+            ->when($esAdminOAuditor && $request->filled('entidad_id'), fn ($q) => $q->where('REQU_ENTIDAD_ID', $request->integer('entidad_id')))
+            ->with([
+                'rubros' => fn ($q) => $q->select(['RUBR_ID', 'RUBR_NOMBRE']),
+                'area' => fn ($q) => $q->select(['AREA_ID', 'AREA_NOMBRE']),
+                'entidad' => fn ($q) => $q->select(['ENTI_ID', 'ENTI_SIGLA']),
+            ])
+            ->orderBy($columnaOrden, $request->input('direccion', 'asc'));
 
         $paginador = $query->paginate(
             $request->integer('por_pagina', 15),
@@ -60,8 +73,10 @@ class RequerimientoController extends Controller
             'numero' => $r->REQU_NUMERO,
             'objeto' => $r->REQU_OBJETO,
             'tipo' => $r->REQU_TIPO,
-            'area_usuaria' => $r->REQU_AREA_USUARIA,
-            'rubro' => $r->rubro ? ['rubro_id' => $r->rubro->RUBR_ID, 'nombre' => $r->rubro->RUBR_NOMBRE] : null,
+            'area' => $r->area ? ['area_id' => $r->area->AREA_ID, 'nombre' => $r->area->AREA_NOMBRE] : null,
+            'entidad' => ['entidad_id' => $r->REQU_ENTIDAD_ID, 'sigla' => $r->entidad?->ENTI_SIGLA],
+            'fecha_creacion' => $r->REQU_CREADO_EN,
+            'rubros' => $r->rubros->map(fn (Rubro $rubro) => ['rubro_id' => $rubro->RUBR_ID, 'nombre' => $rubro->RUBR_NOMBRE])->values(),
             'cantidad_items' => $r->cantidad_items,
             'tiene_convocatoria' => $r->convocatorias_count > 0,
         ]);
@@ -72,10 +87,12 @@ class RequerimientoController extends Controller
     public function show(int $id): JsonResponse
     {
         $requerimiento = Requerimiento::query()
-            ->select(['REQU_ID', 'REQU_RUBRO_ID', 'REQU_NUMERO', 'REQU_OBJETO', 'REQU_DESCRIPCION', 'REQU_TIPO', 'REQU_AREA_USUARIA'])
+            ->select(['REQU_ID', 'REQU_ENTIDAD_ID', 'REQU_NUMERO', 'REQU_OBJETO', 'REQU_DESCRIPCION', 'REQU_TIPO', 'REQU_AREA_ID', 'REQU_CREADO_EN'])
             ->with([
-                'rubro' => fn ($q) => $q->select(['RUBR_ID', 'RUBR_NOMBRE']),
-                'items' => fn ($q) => $q->select(['REIT_ID', 'REIT_REQUERIMIENTO_ID', 'REIT_NUMERO', 'REIT_DESCRIPCION', 'REIT_UNIDAD_MEDIDA_ID', 'REIT_CANTIDAD'])->orderBy('REIT_NUMERO'),
+                'rubros' => fn ($q) => $q->select(['RUBR_ID', 'RUBR_NOMBRE']),
+                'area' => fn ($q) => $q->select(['AREA_ID', 'AREA_NOMBRE']),
+                'entidad' => fn ($q) => $q->select(['ENTI_ID', 'ENTI_SIGLA']),
+                'items' => fn ($q) => $q->select(['REIT_ID', 'REIT_REQUERIMIENTO_ID', 'REIT_NUMERO', 'REIT_DESCRIPCION', 'REIT_UNIDAD_MEDIDA_ID', 'REIT_CANTIDAD', 'REIT_PRESENTACION'])->orderBy('REIT_NUMERO'),
                 'items.unidadMedida' => fn ($q) => $q->select(['UNME_ID', 'UNME_CODIGO', 'UNME_NOMBRE']),
             ])
             ->findOrFail($id);
@@ -91,14 +108,17 @@ class RequerimientoController extends Controller
             'objeto' => $requerimiento->REQU_OBJETO,
             'descripcion' => $requerimiento->REQU_DESCRIPCION,
             'tipo' => $requerimiento->REQU_TIPO,
-            'area_usuaria' => $requerimiento->REQU_AREA_USUARIA,
-            'rubro' => $requerimiento->rubro ? ['rubro_id' => $requerimiento->rubro->RUBR_ID, 'nombre' => $requerimiento->rubro->RUBR_NOMBRE] : null,
+            'area' => $requerimiento->area ? ['area_id' => $requerimiento->area->AREA_ID, 'nombre' => $requerimiento->area->AREA_NOMBRE] : null,
+            'entidad' => ['entidad_id' => $requerimiento->REQU_ENTIDAD_ID, 'sigla' => $requerimiento->entidad?->ENTI_SIGLA],
+            'fecha_creacion' => $requerimiento->REQU_CREADO_EN,
+            'rubros' => $requerimiento->rubros->map(fn (Rubro $rubro) => ['rubro_id' => $rubro->RUBR_ID, 'nombre' => $rubro->RUBR_NOMBRE])->values(),
             'items' => $requerimiento->items->map(fn ($item) => [
                 'requerimiento_item_id' => $item->REIT_ID,
                 'numero' => $item->REIT_NUMERO,
                 'descripcion' => $item->REIT_DESCRIPCION,
                 'unidad_medida' => ['codigo' => $item->unidadMedida->UNME_CODIGO, 'nombre' => $item->unidadMedida->UNME_NOMBRE],
                 'cantidad' => $item->REIT_CANTIDAD,
+                'presentacion' => $item->REIT_PRESENTACION,
             ]),
             'archivo_tdr' => $archivoTdr ? ['archivo_id' => $archivoTdr->ARCH_ID, 'nombre' => $archivoTdr->ARCH_NOMBRE_ORIGINAL] : null,
         ]);
@@ -106,16 +126,20 @@ class RequerimientoController extends Controller
 
     public function store(RequerimientoStoreRequest $request): JsonResponse
     {
-        $requerimiento = $this->requerimientoService->crear($request->validated(), $request->user());
+        $requerimiento = $this->requerimientoService->crear($request->validated(), $request->user(), $request->file('archivo_tdr'));
 
-        return ApiResponse::success(['requerimiento_id' => $requerimiento->REQU_ID], 'Requerimiento creado.', 201);
+        return ApiResponse::success(
+            ['requerimiento_id' => $requerimiento->REQU_ID, 'numero' => $requerimiento->REQU_NUMERO],
+            'Requerimiento creado.',
+            201,
+        );
     }
 
     public function update(RequerimientoUpdateRequest $request, int $id): JsonResponse
     {
         $requerimiento = Requerimiento::select(['REQU_ID'])->findOrFail($id);
 
-        $this->requerimientoService->actualizar($requerimiento, $request->validated());
+        $this->requerimientoService->actualizar($requerimiento, $request->validated(), $request->file('archivo_tdr'));
 
         return ApiResponse::success(null, 'Requerimiento actualizado.');
     }
@@ -127,15 +151,6 @@ class RequerimientoController extends Controller
         $this->requerimientoService->eliminar($requerimiento);
 
         return ApiResponse::success(null, 'Requerimiento eliminado.');
-    }
-
-    public function subirTdr(SubirTdrRequest $request, int $id): JsonResponse
-    {
-        $requerimiento = Requerimiento::select(['REQU_ID'])->findOrFail($id);
-
-        $archivo = $this->archivoService->subir($request->file('archivo'), 'REQUERIMIENTO_TDR', $requerimiento->REQU_ID);
-
-        return ApiResponse::success(['archivo_id' => $archivo->ARCH_ID, 'nombre' => $archivo->ARCH_NOMBRE_ORIGINAL], 'Archivo TDR subido.', 201);
     }
 
     public function eliminarTdr(int $id, int $archivoId): JsonResponse
@@ -152,6 +167,20 @@ class RequerimientoController extends Controller
         $this->archivoService->eliminar($archivo);
 
         return ApiResponse::success(null, 'Archivo TDR eliminado.');
+    }
+
+    /** Catálogo de unidades de medida para la sub-tabla de ítems de E2. Solo
+     * existía `GET /admin/unidades-medida` (administracion.catalogos), que
+     * ENTIDAD nunca tiene; este endpoint espeja el mismo shape bajo
+     * `requerimientos.ver`, que ENTIDAD sí tiene. */
+    public function unidadesMedida(): JsonResponse
+    {
+        $items = UnidadMedida::select(['UNME_ID', 'UNME_CODIGO', 'UNME_NOMBRE'])
+            ->orderBy('UNME_CODIGO')
+            ->get()
+            ->map(fn (UnidadMedida $u) => ['unidad_medida_id' => $u->UNME_ID, 'codigo' => $u->UNME_CODIGO, 'nombre' => $u->UNME_NOMBRE]);
+
+        return ApiResponse::success($items);
     }
 
     public function combo(Request $request): JsonResponse

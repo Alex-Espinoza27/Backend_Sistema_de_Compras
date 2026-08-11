@@ -24,6 +24,7 @@ class RequerimientoItem extends Model
         'REIT_DESCRIPCION',
         'REIT_UNIDAD_MEDIDA_ID',
         'REIT_CANTIDAD',
+        'REIT_PRESENTACION',
     ];
 
     protected function casts(): array
