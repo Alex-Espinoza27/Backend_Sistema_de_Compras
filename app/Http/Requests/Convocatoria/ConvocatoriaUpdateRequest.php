@@ -17,6 +17,7 @@ class ConvocatoriaUpdateRequest extends FormRequest
             'nombre_servicio' => ['required', 'string', 'max:250'],
             'fecha_inicio' => ['required', 'date'],
             'fecha_fin' => ['required', 'date', 'after:fecha_inicio'],
+            'archivo_plantilla_dj' => ['nullable', 'file', 'mimes:pdf,doc,docx', 'max:'.(config('archivo.max_mb') * 1024)],
         ];
     }
 }

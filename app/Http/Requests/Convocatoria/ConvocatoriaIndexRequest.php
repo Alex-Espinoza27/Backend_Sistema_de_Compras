@@ -17,6 +17,11 @@ class ConvocatoriaIndexRequest extends FormRequest
         return [
             'buscar' => ['nullable', 'string', 'max:150'],
             'estado' => ['nullable', Rule::in(['BORRADOR', 'PUBLICADA', 'EN_EVALUACION', 'ADJUDICADA', 'DESIERTA', 'CANCELADA'])],
+            // Módulo Adjudicación (M08 del TDR, 05C hardening): convocatorias
+            // EN_EVALUACION donde ninguna oferta sigue pendiente de evaluar
+            // (mismo criterio que ya exige `AdjudicacionService::adjudicar`,
+            // sin agregar un estado nuevo — decisión confirmada con el usuario).
+            'lista_para_adjudicar' => ['nullable', Rule::in(['true', 'false', '1', '0'])],
             'entidad_id' => ['nullable', 'integer', Rule::exists('ENTIDAD', 'ENTI_ID')],
             'desde' => ['nullable', 'date'],
             'hasta' => ['nullable', 'date'],

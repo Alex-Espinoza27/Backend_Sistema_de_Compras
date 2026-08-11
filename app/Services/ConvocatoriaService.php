@@ -9,6 +9,8 @@ use App\Models\Estado;
 use App\Models\Oferta;
 use App\Models\Requerimiento;
 use App\Models\RequerimientoItem;
+use Illuminate\Http\UploadedFile;
+use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\DB;
 use Symfony\Component\HttpKernel\Exception\HttpException;
 
@@ -23,9 +25,10 @@ class ConvocatoriaService
         private EstadoService $estadoService,
         private NumeracionService $numeracionService,
         private AuditoriaService $auditoria,
+        private ArchivoService $archivoService,
     ) {}
 
-    public function crear(array $datos, int $entidadId): Convocatoria
+    public function crear(array $datos, int $entidadId, ?UploadedFile $archivoPlantillaDj = null): Convocatoria
     {
         $requerimiento = Requerimiento::select(['REQU_ID', 'REQU_ENTIDAD_ID'])->findOrFail($datos['requerimiento_id']);
 
@@ -41,15 +44,19 @@ class ConvocatoriaService
 
         $estadoBorradorId = Estado::where('ESTA_CONTEXTO', 'CONVOCATORIA')->where('ESTA_CODIGO', 'BORRADOR')->value('ESTA_ID');
 
-        return DB::transaction(function () use ($datos, $requerimiento, $entidadId, $estadoBorradorId) {
+        return DB::transaction(function () use ($datos, $requerimiento, $entidadId, $estadoBorradorId, $archivoPlantillaDj) {
             $convocatoria = Convocatoria::create([
                 'CONV_REQUERIMIENTO_ID' => $requerimiento->REQU_ID,
                 'CONV_ENTIDAD_ID' => $entidadId,
                 'CONV_NOMBRE_SERVICIO' => $datos['nombre_servicio'],
-                'CONV_FECHA_INICIO' => $datos['fecha_inicio'],
-                'CONV_FECHA_FIN' => $datos['fecha_fin'],
+                'CONV_FECHA_INICIO' => $this->aLimaUtc($datos['fecha_inicio']),
+                'CONV_FECHA_FIN' => $this->aLimaUtc($datos['fecha_fin']),
                 'CONV_ESTADO_ID' => $estadoBorradorId,
             ]);
+
+            if ($archivoPlantillaDj) {
+                $this->archivoService->subir($archivoPlantillaDj, 'CONVOCATORIA_PLANTILLA_DJ', $convocatoria->CONV_ID);
+            }
 
             $this->auditoria->registrar('CONVOCATORIAS', 'CREAR', 'CONVOCATORIA', $convocatoria->CONV_ID);
 
@@ -57,28 +64,42 @@ class ConvocatoriaService
         });
     }
 
-    public function actualizar(Convocatoria $convocatoria, array $datos): Convocatoria
+    public function actualizar(Convocatoria $convocatoria, array $datos, ?UploadedFile $archivoPlantillaDj = null): Convocatoria
     {
         $this->asegurarBorrador($convocatoria);
 
         $valorAnterior = $convocatoria->only(['CONV_NOMBRE_SERVICIO', 'CONV_FECHA_INICIO', 'CONV_FECHA_FIN']);
 
-        $convocatoria->update([
-            'CONV_NOMBRE_SERVICIO' => $datos['nombre_servicio'],
-            'CONV_FECHA_INICIO' => $datos['fecha_inicio'],
-            'CONV_FECHA_FIN' => $datos['fecha_fin'],
-        ]);
+        return DB::transaction(function () use ($convocatoria, $datos, $archivoPlantillaDj, $valorAnterior) {
+            $convocatoria->update([
+                'CONV_NOMBRE_SERVICIO' => $datos['nombre_servicio'],
+                'CONV_FECHA_INICIO' => $this->aLimaUtc($datos['fecha_inicio']),
+                'CONV_FECHA_FIN' => $this->aLimaUtc($datos['fecha_fin']),
+            ]);
 
-        $this->auditoria->registrar(
-            'CONVOCATORIAS',
-            'ACTUALIZAR',
-            'CONVOCATORIA',
-            $convocatoria->CONV_ID,
-            $valorAnterior,
-            $convocatoria->only(['CONV_NOMBRE_SERVICIO', 'CONV_FECHA_INICIO', 'CONV_FECHA_FIN']),
-        );
+            // Solo se reemplaza la plantilla DJ si llega una nueva; si no, la
+            // existente queda intacta (05C hardening — antes exigía un botón aparte).
+            if ($archivoPlantillaDj) {
+                $anterior = Archivo::where('ARCH_CONTEXTO', 'CONVOCATORIA_PLANTILLA_DJ')
+                    ->where('ARCH_REFERENCIA_ID', $convocatoria->CONV_ID)
+                    ->first();
+                if ($anterior) {
+                    $this->archivoService->eliminar($anterior);
+                }
+                $this->archivoService->subir($archivoPlantillaDj, 'CONVOCATORIA_PLANTILLA_DJ', $convocatoria->CONV_ID);
+            }
 
-        return $convocatoria;
+            $this->auditoria->registrar(
+                'CONVOCATORIAS',
+                'ACTUALIZAR',
+                'CONVOCATORIA',
+                $convocatoria->CONV_ID,
+                $valorAnterior,
+                $convocatoria->only(['CONV_NOMBRE_SERVICIO', 'CONV_FECHA_INICIO', 'CONV_FECHA_FIN']),
+            );
+
+            return $convocatoria;
+        });
     }
 
     public function publicar(Convocatoria $convocatoria): array
@@ -257,5 +278,18 @@ class ConvocatoriaService
         if ($estadoCodigo !== 'BORRADOR') {
             throw new HttpException(409, 'Solo se puede operar sobre una convocatoria en borrador.');
         }
+    }
+
+    /**
+     * `fecha_inicio`/`fecha_fin` llegan como fecha+hora (`YYYY-MM-DDTHH:mm`,
+     * 05C hardening — antes solo fecha, forzada a inicio/fin de día) desde el
+     * formulario. La app corre en UTC (config('app.timezone')) pero Perú es
+     * UTC-5 fijo (sin horario de verano): se interpreta la hora recibida como
+     * America/Lima y se convierte a UTC para almacenar, sin recortar/forzar
+     * ninguna parte del día.
+     */
+    private function aLimaUtc(string $fechaHora): Carbon
+    {
+        return Carbon::parse($fechaHora, 'America/Lima')->utc();
     }
 }
