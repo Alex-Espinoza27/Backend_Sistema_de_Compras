@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Api\V1;
 
 use App\Http\Controllers\Controller;
 use App\Http\Requests\Admin\ActualizarPermisosRolRequest;
+use App\Http\Requests\Admin\RolStoreRequest;
 use App\Services\AdministracionService;
 use App\Support\ApiResponse;
 use Illuminate\Http\JsonResponse;
@@ -48,5 +49,22 @@ class AdminRolController extends Controller
             'rol' => $rolActualizado->name,
             'permisos' => $rolActualizado->permissions->pluck('name')->values(),
         ], 'Permisos actualizados.');
+    }
+
+    public function crear(RolStoreRequest $request): JsonResponse
+    {
+        $rol = $this->administracionService->crearRol($request->validated());
+
+        return ApiResponse::success([
+            'rol' => $rol->name,
+            'permisos' => $rol->permissions->pluck('name')->values(),
+        ], 'Rol creado.', 201);
+    }
+
+    public function eliminar(string $rol): JsonResponse
+    {
+        $this->administracionService->eliminarRol($rol);
+
+        return ApiResponse::success(null, 'Rol eliminado.');
     }
 }

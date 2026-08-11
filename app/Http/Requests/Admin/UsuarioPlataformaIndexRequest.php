@@ -5,7 +5,7 @@ namespace App\Http\Requests\Admin;
 use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Validation\Rule;
 
-class UsuarioInternoIndexRequest extends FormRequest
+class UsuarioPlataformaIndexRequest extends FormRequest
 {
     public function authorize(): bool
     {
@@ -16,7 +16,7 @@ class UsuarioInternoIndexRequest extends FormRequest
     {
         return [
             'buscar' => ['nullable', 'string', 'max:150'],
-            'rol' => ['nullable', Rule::in(['ADMINISTRADOR', 'AUDITOR'])],
+            'rol' => ['nullable', Rule::exists('roles', 'name')->where(fn ($q) => $q->where('name', '!=', 'PROVEEDOR'))],
             'ordenar_por' => ['nullable', Rule::in(['nombre', 'email'])],
             'direccion' => ['nullable', Rule::in(['asc', 'desc'])],
             'pagina' => ['nullable', 'integer', 'min:1'],
