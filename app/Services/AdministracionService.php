@@ -2,13 +2,16 @@
 
 namespace App\Services;
 
+use App\Mail\NotificacionInstitucional;
 use App\Models\Configuracion;
 use App\Models\Estado;
 use App\Models\Proveedor;
 use App\Models\TipoDocumento;
 use App\Models\Uit;
 use App\Models\User;
+use Illuminate\Support\Facades\Crypt;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Mail;
 use Illuminate\Support\Facades\Password;
 use Illuminate\Support\Str;
 use Spatie\Permission\Models\Role;
@@ -257,18 +260,47 @@ class AdministracionService
                 $config = Configuracion::where('CONF_CLAVE', $item['clave'])->firstOrFail();
                 $valorAnterior = $config->CONF_VALOR;
 
-                $config->update(['CONF_VALOR' => $item['valor']]);
+                // El middleware global ConvertEmptyStringsToNull convierte
+                // "" a null antes de llegar aquí — se normaliza de vuelta a
+                // "" (CONF_VALOR nunca debe quedar null a propósito).
+                $valor = $item['valor'] ?? '';
+
+                // CONF_TIPO=SECRETO (credenciales SMTP, 05C hardening): se
+                // guarda cifrado con la APP_KEY, nunca en texto plano (salvo
+                // que se limpie a vacío a propósito, que se guarda tal cual
+                // para que quede consistentemente "sin definir"). El valor
+                // anterior tampoco se expone en la auditoría.
+                $esSecreto = $config->CONF_TIPO === 'SECRETO';
+                $nuevoValor = ($esSecreto && $valor !== '') ? Crypt::encryptString($valor) : $valor;
+                $config->update(['CONF_VALOR' => $nuevoValor]);
 
                 $this->auditoria->registrar(
                     'ADMINISTRACION',
                     'ACTUALIZAR',
                     'CONFIGURACION',
                     $config->CONF_ID,
-                    ['valor' => $valorAnterior],
-                    ['valor' => $item['valor']],
+                    ['valor' => $esSecreto ? '••••••••' : $valorAnterior],
+                    ['valor' => $esSecreto ? '••••••••' : $valor],
                 );
             }
         });
+    }
+
+    /** Envía de forma síncrona (no encolada, a diferencia de
+     * NotificacionService::enviarCorreo) para que un fallo de credenciales
+     * SMTP se reporte de inmediato al admin, no quede silencioso en
+     * `failed_jobs` (05C hardening, pedido explícitamente por el usuario). */
+    public function enviarCorreoPrueba(string $destino): void
+    {
+        try {
+            Mail::to($destino)->send(new NotificacionInstitucional(
+                'Correo de prueba — Compras La Perla',
+                'Este es un correo de prueba enviado desde la Configuración de la plataforma. '
+                .'Si lo recibiste, las credenciales SMTP configuradas funcionan correctamente.',
+            ));
+        } catch (\Throwable $e) {
+            throw new HttpException(422, 'No se pudo enviar el correo de prueba: '.$e->getMessage());
+        }
     }
 
     public function crearUit(array $datos): Uit

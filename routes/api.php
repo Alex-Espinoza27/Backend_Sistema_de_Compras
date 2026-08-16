@@ -186,6 +186,7 @@ Route::prefix('v1')->middleware('throttle:api')->group(function () {
 
         Route::get('/configuracion', [AdminConfiguracionController::class, 'index'])->middleware('permission:administracion.configuracion');
         Route::put('/configuracion', [AdminConfiguracionController::class, 'update'])->middleware('permission:administracion.configuracion');
+        Route::post('/configuracion/probar-correo', [AdminConfiguracionController::class, 'probarCorreo'])->middleware(['permission:administracion.configuracion', 'throttle:auth']);
         Route::get('/uit', [AdminConfiguracionController::class, 'uitIndex'])->middleware('permission:administracion.configuracion');
         Route::post('/uit', [AdminConfiguracionController::class, 'uitStore'])->middleware('permission:administracion.configuracion');
         Route::put('/uit/{id}', [AdminConfiguracionController::class, 'uitUpdate'])->whereNumber('id')->middleware('permission:administracion.configuracion');

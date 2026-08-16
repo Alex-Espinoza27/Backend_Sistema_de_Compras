@@ -42,7 +42,16 @@ class ProduccionSeeder extends Seeder
             ['CONF_CLAVE' => 'UMBRAL_UIT', 'CONF_VALOR' => '8', 'CONF_TIPO' => 'ENTERO', 'CONF_DESCRIPCION' => 'Umbral de contratación en UIT.'],
             ['CONF_CLAVE' => 'DIAS_URGENCIA', 'CONF_VALOR' => '2', 'CONF_TIPO' => 'ENTERO', 'CONF_DESCRIPCION' => 'Días restantes para marcar una convocatoria como urgente.'],
             ['CONF_CLAVE' => 'CORREO_REMITENTE', 'CONF_VALOR' => 'no-reply@munilaperla.gob.pe', 'CONF_TIPO' => 'TEXTO', 'CONF_DESCRIPCION' => 'Correo remitente de las notificaciones institucionales.'],
+            ['CONF_CLAVE' => 'CORREO_REMITENTE_NOMBRE', 'CONF_VALOR' => 'Compras La Perla', 'CONF_TIPO' => 'TEXTO', 'CONF_DESCRIPCION' => 'Nombre remitente que ven los destinatarios de las notificaciones.'],
             ['CONF_CLAVE' => 'PLANTILLA_DJ_DEFECTO', 'CONF_VALOR' => '', 'CONF_TIPO' => 'TEXTO', 'CONF_DESCRIPCION' => 'Referencia a la plantilla de declaración jurada por defecto.'],
+            // Credenciales SMTP (05C hardening, pedido explícitamente por el
+            // usuario): si SMTP_HOST queda vacío, sigue rigiendo lo que haya
+            // en .env (ej. Mailpit en desarrollo) — ver AppServiceProvider.
+            ['CONF_CLAVE' => 'SMTP_HOST', 'CONF_VALOR' => '', 'CONF_TIPO' => 'TEXTO', 'CONF_DESCRIPCION' => 'Servidor SMTP para el envío real de correos (vacío = usar el de .env).'],
+            ['CONF_CLAVE' => 'SMTP_PUERTO', 'CONF_VALOR' => '587', 'CONF_TIPO' => 'ENTERO', 'CONF_DESCRIPCION' => 'Puerto del servidor SMTP.'],
+            ['CONF_CLAVE' => 'SMTP_USUARIO', 'CONF_VALOR' => '', 'CONF_TIPO' => 'TEXTO', 'CONF_DESCRIPCION' => 'Usuario/cuenta para autenticarse contra el servidor SMTP.'],
+            ['CONF_CLAVE' => 'SMTP_PASSWORD', 'CONF_VALOR' => '', 'CONF_TIPO' => 'SECRETO', 'CONF_DESCRIPCION' => 'Contraseña SMTP (se guarda cifrada, nunca se muestra en texto plano).'],
+            ['CONF_CLAVE' => 'SMTP_CIFRADO', 'CONF_VALOR' => 'tls', 'CONF_TIPO' => 'TEXTO', 'CONF_DESCRIPCION' => 'Cifrado del servidor SMTP: tls, ssl, o vacío para ninguno.'],
         ];
 
         foreach ($filas as $fila) {

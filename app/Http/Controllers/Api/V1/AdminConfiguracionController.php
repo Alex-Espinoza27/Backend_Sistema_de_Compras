@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Api\V1;
 
 use App\Http\Controllers\Controller;
 use App\Http\Requests\Admin\ConfiguracionUpdateRequest;
+use App\Http\Requests\Admin\ProbarCorreoRequest;
 use App\Http\Requests\Admin\UitStoreRequest;
 use App\Http\Requests\Admin\UitUpdateRequest;
 use App\Models\Configuracion;
@@ -23,7 +24,11 @@ class AdminConfiguracionController extends Controller
             ->get()
             ->map(fn (Configuracion $c) => [
                 'clave' => $c->CONF_CLAVE,
-                'valor' => $c->CONF_VALOR,
+                // CONF_TIPO=SECRETO (credenciales SMTP, 05C hardening): nunca
+                // se devuelve el valor cifrado — solo si ya hay uno guardado,
+                // para que el frontend pueda mostrar un indicador sin
+                // exponerlo. Dejarlo vacío al guardar significa "no cambiar".
+                'valor' => $c->CONF_TIPO === 'SECRETO' ? ($c->CONF_VALOR ? '••••••••' : '') : $c->CONF_VALOR,
                 'tipo' => $c->CONF_TIPO,
                 'descripcion' => $c->CONF_DESCRIPCION,
             ]);
@@ -36,6 +41,16 @@ class AdminConfiguracionController extends Controller
         $this->administracionService->actualizarConfiguracion($request->input('configuraciones'));
 
         return ApiResponse::success(null, 'Configuración actualizada.');
+    }
+
+    /** Envía un correo de prueba con la configuración SMTP actual (05C
+     * hardening, pedido explícitamente por el usuario): forma directa de
+     * confirmar que las credenciales guardadas realmente funcionan. */
+    public function probarCorreo(ProbarCorreoRequest $request): JsonResponse
+    {
+        $this->administracionService->enviarCorreoPrueba($request->string('destino'));
+
+        return ApiResponse::success(null, 'Correo de prueba enviado.');
     }
 
     public function uitIndex(): JsonResponse
