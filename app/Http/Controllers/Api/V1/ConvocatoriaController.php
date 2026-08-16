@@ -35,9 +35,13 @@ class ConvocatoriaController extends Controller
         $esAdminOAuditor = $request->user()->hasAnyRole(['ADMINISTRADOR', 'AUDITOR']);
 
         $query = Convocatoria::query()
-            ->select(['CONV_ID', 'CONV_NUMERO', 'CONV_NOMBRE_SERVICIO', 'CONV_FECHA_INICIO', 'CONV_FECHA_FIN', 'CONV_ESTADO_ID', 'CONV_MOTIVO_CIERRE'])
+            ->select(['CONV_ID', 'CONV_NUMERO', 'CONV_NOMBRE_SERVICIO', 'CONV_FECHA_INICIO', 'CONV_FECHA_FIN', 'CONV_ESTADO_ID', 'CONV_MOTIVO_CIERRE', 'CONV_NUMERO_INDAGACION'])
             ->selectRaw('fn_convocatoria_urgencia("CONV_ID") as urgencia_dias')
             ->withCount('ofertas as total_ofertas')
+            // Ofertas ya calificadas (05C hardening, pedido explícitamente
+            // por el usuario): para mostrar el avance de evaluación sin
+            // tener que entrar convocatoria por convocatoria.
+            ->withCount(['ofertas as ofertas_evaluadas' => fn ($q) => $q->whereHas('estado', fn ($e) => $e->whereIn('ESTA_CODIGO', ['APROBADA', 'DESAPROBADA']))])
             ->when($request->filled('buscar'), function ($q) use ($request) {
                 $buscar = $request->string('buscar');
                 $q->where(function ($sub) use ($buscar) {
@@ -48,10 +52,20 @@ class ConvocatoriaController extends Controller
                 $estadoId = Estado::where('ESTA_CONTEXTO', 'CONVOCATORIA')->where('ESTA_CODIGO', $request->input('estado'))->value('ESTA_ID');
                 $q->where('CONV_ESTADO_ID', $estadoId);
             })
+            // Bandeja de Evaluación (05C hardening, pedido explícitamente por
+            // el usuario): ya no espera a que venza el plazo — cualquier
+            // convocatoria con al menos una oferta, PUBLICADA o EN_EVALUACION.
+            ->when(filter_var($request->input('lista_para_evaluar'), FILTER_VALIDATE_BOOLEAN), function ($q) {
+                $estadosId = Estado::where('ESTA_CONTEXTO', 'CONVOCATORIA')->whereIn('ESTA_CODIGO', ['PUBLICADA', 'EN_EVALUACION'])->pluck('ESTA_ID');
+                $q->whereIn('CONV_ESTADO_ID', $estadosId)->whereHas('ofertas');
+            })
             ->when(filter_var($request->input('lista_para_adjudicar'), FILTER_VALIDATE_BOOLEAN), function ($q) {
                 $estadoEnEvaluacionId = Estado::where('ESTA_CONTEXTO', 'CONVOCATORIA')->where('ESTA_CODIGO', 'EN_EVALUACION')->value('ESTA_ID');
+                // Sin exigir ofertas (05C hardening, pedido explícitamente
+                // por el usuario): una convocatoria que no recibió ninguna
+                // postulación también debe poder declararse desierta ("no se
+                // presentaron cotizaciones") — antes nunca aparecía aquí.
                 $q->where('CONV_ESTADO_ID', $estadoEnEvaluacionId)
-                    ->whereHas('ofertas')
                     ->whereDoesntHave('ofertas', fn ($sub) => $sub->whereHas('estado', fn ($e) => $e->where('ESTA_CODIGO', 'EN_EVALUACION')));
             })
             ->when($esAdminOAuditor && $request->filled('entidad_id'), fn ($q) => $q->where('CONV_ENTIDAD_ID', $request->integer('entidad_id')))
@@ -74,7 +88,9 @@ class ConvocatoriaController extends Controller
             'estado' => ['codigo' => $c->estado->ESTA_CODIGO, 'nombre' => $c->estado->ESTA_NOMBRE, 'color' => $c->estado->ESTA_COLOR],
             'urgencia_dias' => (int) $c->urgencia_dias,
             'total_ofertas' => $c->total_ofertas,
+            'ofertas_evaluadas' => $c->ofertas_evaluadas,
             'motivo_cierre' => $c->CONV_MOTIVO_CIERRE,
+            'numero_indagacion' => $c->CONV_NUMERO_INDAGACION,
         ]);
 
         return ApiResponse::paginado($paginador);

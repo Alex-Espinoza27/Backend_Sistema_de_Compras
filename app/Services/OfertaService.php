@@ -126,6 +126,15 @@ class OfertaService
             throw new HttpException(409, 'La convocatoria ya no está vigente; la postulación quedó firme.');
         }
 
+        // 05C hardening (pedido explícitamente por el usuario): ahora se
+        // puede evaluar mientras la convocatoria sigue PUBLICADA, así que ya
+        // no basta con mirar el estado de la convocatoria — una oferta que
+        // ya fue calificada no se puede retirar aunque el plazo siga abierto.
+        $codigoOferta = Estado::where('ESTA_ID', $oferta->OFER_ESTADO_ID)->value('ESTA_CODIGO');
+        if ($codigoOferta !== 'ENVIADA') {
+            throw new HttpException(409, 'Esta oferta ya fue evaluada; no se puede retirar.');
+        }
+
         $oferta->delete();
 
         $this->auditoria->registrar('OFERTAS', 'ELIMINAR', 'OFERTA', $oferta->OFER_ID);

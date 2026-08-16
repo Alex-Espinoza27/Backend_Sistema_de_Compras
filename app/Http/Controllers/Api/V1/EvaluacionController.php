@@ -21,7 +21,9 @@ class EvaluacionController extends Controller
         $convocatoria = Convocatoria::select(['CONV_ID', 'CONV_ESTADO_ID'])->findOrFail($id);
         $codigoConvocatoria = Estado::where('ESTA_ID', $convocatoria->CONV_ESTADO_ID)->value('ESTA_CODIGO');
 
-        if (! in_array($codigoConvocatoria, ['EN_EVALUACION', 'ADJUDICADA', 'DESIERTA'], true)) {
+        // PUBLICADA incluida (05C hardening, pedido explícitamente por el
+        // usuario): se puede evaluar antes de que venza el plazo.
+        if (! in_array($codigoConvocatoria, ['PUBLICADA', 'EN_EVALUACION', 'ADJUDICADA', 'DESIERTA'], true)) {
             throw new HttpException(409, 'Las ofertas de esta convocatoria aún no están disponibles para evaluación.');
         }
 

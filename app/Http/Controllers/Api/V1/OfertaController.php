@@ -243,7 +243,7 @@ class OfertaController extends Controller
     {
         $proveedor = $request->user()->proveedor()->select(['PROV_ID'])->firstOrFail();
 
-        $oferta = Oferta::select(['OFER_ID', 'OFER_CONVOCATORIA_ID', 'OFER_PROVEEDOR_ID'])
+        $oferta = Oferta::select(['OFER_ID', 'OFER_CONVOCATORIA_ID', 'OFER_PROVEEDOR_ID', 'OFER_ESTADO_ID'])
             ->where('OFER_PROVEEDOR_ID', $proveedor->PROV_ID)
             ->findOrFail($id);
 

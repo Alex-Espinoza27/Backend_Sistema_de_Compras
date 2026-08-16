@@ -26,8 +26,13 @@ class EvaluacionService
         $convocatoria = Convocatoria::select(['CONV_ID', 'CONV_ESTADO_ID'])->findOrFail($oferta->OFER_CONVOCATORIA_ID);
         $codigoConvocatoria = Estado::where('ESTA_ID', $convocatoria->CONV_ESTADO_ID)->value('ESTA_CODIGO');
 
-        if ($codigoConvocatoria !== 'EN_EVALUACION') {
-            throw new HttpException(409, 'Solo se puede evaluar mientras la convocatoria está en evaluación.');
+        // Evaluar ya no espera a que venza el plazo (05C hardening, pedido
+        // explícitamente por el usuario): la entidad puede empezar a
+        // calificar ofertas apenas llegan, mientras la convocatoria sigue
+        // PUBLICADA. Adjudicar sigue exigiendo EN_EVALUACION (plazo
+        // realmente vencido) — ver AdjudicacionService::adjudicar/desierta.
+        if (! in_array($codigoConvocatoria, ['PUBLICADA', 'EN_EVALUACION'], true)) {
+            throw new HttpException(409, 'Solo se puede evaluar mientras la convocatoria admite postulaciones o está en evaluación.');
         }
 
         $evalTecnica = array_key_exists('eval_tecnica', $datos) ? $datos['eval_tecnica'] : $oferta->OFER_EVAL_TECNICA;
@@ -59,6 +64,10 @@ class EvaluacionService
                 contexto: 'OFERTA',
                 codigoDestino: $codigoDestino,
                 transicionesPermitidas: [
+                    // La primera evaluación saca a la oferta de ENVIADA (05C
+                    // hardening): $codigoDestino nunca vale ENVIADA, así que
+                    // no hace falta un self-loop para ese origen.
+                    'ENVIADA' => ['EN_EVALUACION', 'APROBADA', 'DESAPROBADA'],
                     'EN_EVALUACION' => ['EN_EVALUACION', 'APROBADA', 'DESAPROBADA'],
                     'APROBADA' => ['APROBADA', 'DESAPROBADA', 'EN_EVALUACION'],
                     'DESAPROBADA' => ['DESAPROBADA', 'APROBADA', 'EN_EVALUACION'],

@@ -171,7 +171,14 @@ class AdjudicacionService
                 );
             }
 
-            $this->generarYGuardarResultadoPdf($convocatoria);
+            // El documento "Indagación de Mercado" solo tiene sentido cuando
+            // hubo ofertas evaluadas y ninguna aprobó (05C hardening, pedido
+            // explícitamente por el usuario) — si la desierta es por "no se
+            // presentaron cotizaciones" (0 ofertas), no hay nada que
+            // reportar: no se genera número ni PDF.
+            if ($ofertas->isNotEmpty()) {
+                $this->generarYGuardarResultadoPdf($convocatoria);
+            }
         });
 
         $this->notificarResultados($convocatoria->CONV_ID, null);

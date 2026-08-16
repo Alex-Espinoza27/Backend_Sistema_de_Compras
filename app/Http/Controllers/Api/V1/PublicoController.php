@@ -133,7 +133,7 @@ class PublicoController extends Controller
             ->select([
                 'CONV_ID', 'CONV_REQUERIMIENTO_ID', 'CONV_ENTIDAD_ID', 'CONV_NUMERO',
                 'CONV_NOMBRE_SERVICIO', 'CONV_FECHA_INICIO', 'CONV_FECHA_FIN', 'CONV_FECHA_PUBLICACION', 'CONV_ESTADO_ID',
-                'CONV_MOTIVO_CIERRE', 'CONV_OFERTA_ADJUDICADA_ID',
+                'CONV_MOTIVO_CIERRE', 'CONV_OFERTA_ADJUDICADA_ID', 'CONV_NUMERO_INDAGACION',
             ])
             ->selectRaw('fn_convocatoria_urgencia("CONV_ID") as urgencia_dias')
             ->whereIn('CONV_ESTADO_ID', $estadosDelGrupo)
@@ -211,12 +211,15 @@ class PublicoController extends Controller
                 : match ($estadoGrupo) {
                     'VIGENTES' => $miOfertaId ? 'YA_POSTULADO' : 'POSTULAR',
                     'EN_EVALUACION' => 'NINGUNA',
-                    // DESIERTA también tiene documento descargable (05C
-                    // hardening, pedido explícitamente por el usuario): el
-                    // mismo PDF de resultados se genera y persiste en ambos
-                    // casos (AdjudicacionService::generarYGuardarResultadoPdf).
-                    // CANCELADA nunca corrió evaluación, se queda solo con MOTIVO.
-                    'CONCLUIDAS' => in_array($conv->estado->ESTA_CODIGO, ['ADJUDICADA', 'DESIERTA'], true) ? 'RESULTADOS' : 'MOTIVO',
+                    // DESIERTA solo tiene documento descargable cuando hubo
+                    // ofertas evaluadas y ninguna aprobó (05C hardening,
+                    // pedido explícitamente por el usuario) — si fue "no se
+                    // presentaron cotizaciones", nunca se generó
+                    // CONV_NUMERO_INDAGACION ni el PDF. CANCELADA nunca corrió
+                    // evaluación, se queda solo con MOTIVO.
+                    'CONCLUIDAS' => $conv->estado->ESTA_CODIGO === 'ADJUDICADA' || ($conv->estado->ESTA_CODIGO === 'DESIERTA' && $conv->CONV_NUMERO_INDAGACION)
+                        ? 'RESULTADOS'
+                        : 'MOTIVO',
                 };
 
             $item = [
@@ -284,7 +287,7 @@ class PublicoController extends Controller
             ->select([
                 'CONV_ID', 'CONV_REQUERIMIENTO_ID', 'CONV_ENTIDAD_ID', 'CONV_NUMERO',
                 'CONV_NOMBRE_SERVICIO', 'CONV_FECHA_INICIO', 'CONV_FECHA_FIN', 'CONV_FECHA_PUBLICACION',
-                'CONV_ESTADO_ID', 'CONV_MOTIVO_CIERRE', 'CONV_OFERTA_ADJUDICADA_ID',
+                'CONV_ESTADO_ID', 'CONV_MOTIVO_CIERRE', 'CONV_OFERTA_ADJUDICADA_ID', 'CONV_NUMERO_INDAGACION',
             ])
             ->where('CONV_ESTADO_ID', '!=', $borradorId)
             ->with([
@@ -324,10 +327,14 @@ class PublicoController extends Controller
             ->where('OFER_PROVEEDOR_ID', $proveedorId)
             ->exists();
 
-        $accion = match ($conv->estado->ESTA_CODIGO) {
-            'PUBLICADA' => $yaPostulo ? 'YA_POSTULADO' : 'POSTULAR',
-            'ADJUDICADA', 'DESIERTA' => 'RESULTADOS',
-            'CANCELADA' => 'MOTIVO',
+        $accion = match (true) {
+            $conv->estado->ESTA_CODIGO === 'PUBLICADA' => $yaPostulo ? 'YA_POSTULADO' : 'POSTULAR',
+            $conv->estado->ESTA_CODIGO === 'ADJUDICADA' => 'RESULTADOS',
+            // DESIERTA solo tiene documento cuando hubo ofertas evaluadas y
+            // ninguna aprobó (05C hardening, pedido explícitamente por el
+            // usuario) — si fue "no se presentaron cotizaciones", no hay PDF.
+            $conv->estado->ESTA_CODIGO === 'DESIERTA' && $conv->CONV_NUMERO_INDAGACION => 'RESULTADOS',
+            in_array($conv->estado->ESTA_CODIGO, ['DESIERTA', 'CANCELADA'], true) => 'MOTIVO',
             default => 'NINGUNA',
         };
 
@@ -416,11 +423,15 @@ class PublicoController extends Controller
             ->whereIn('ESTA_CODIGO', ['ADJUDICADA', 'DESIERTA'])
             ->pluck('ESTA_ID');
 
-        $conv = Convocatoria::select(['CONV_ID', 'CONV_NUMERO', 'CONV_NOMBRE_SERVICIO', 'CONV_ENTIDAD_ID', 'CONV_ESTADO_ID', 'CONV_FECHA_RESULTADO'])
+        $conv = Convocatoria::select(['CONV_ID', 'CONV_NUMERO', 'CONV_NOMBRE_SERVICIO', 'CONV_ENTIDAD_ID', 'CONV_ESTADO_ID', 'CONV_FECHA_RESULTADO', 'CONV_NUMERO_INDAGACION'])
             ->with(['entidad' => fn ($sub) => $sub->select(['ENTI_ID', 'ENTI_RAZON_SOCIAL'])])
             ->findOrFail($id);
 
-        if (! $estadosConDocumento->contains($conv->CONV_ESTADO_ID)) {
+        // DESIERTA sin ofertas ("no se presentaron cotizaciones", 05C
+        // hardening pedido explícitamente por el usuario) nunca generó
+        // número de indagación ni PDF — nunca se debe armar uno "al vuelo"
+        // para este caso, aunque el estado sí esté en la lista de arriba.
+        if (! $estadosConDocumento->contains($conv->CONV_ESTADO_ID) || ! $conv->CONV_NUMERO_INDAGACION) {
             throw new HttpException(409, 'Esta convocatoria aún no tiene un documento de resultados disponible.');
         }
 
