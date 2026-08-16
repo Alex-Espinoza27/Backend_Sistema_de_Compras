@@ -67,6 +67,14 @@ class NumeracionService
      * que generar()/generarRequerimiento() pero con contador propio del
      * PROVEEDOR (antes usaba el OFER_ID crudo, que no significa nada para el
      * proveedor y se prestaba a confusión con otro tipo de documento).
+     *
+     * Bug real corregido: el formato anterior ("CP-{correlativo}-{año}") no
+     * incluía nada específico del proveedor, así que dos proveedores
+     * distintos en su primera oferta del año generaban el mismo código —
+     * OFER_CONSTANCIA_CODIGO es único a nivel de toda la tabla (no por
+     * proveedor), así que chocaba contra esa restricción apenas había más de
+     * un proveedor activo. Se agrega el PROV_ID (globalmente único) como
+     * sufijo, igual que CONV_NUMERO usa la sigla de la entidad para lo mismo.
      */
     public function generarOferta(int $proveedorId): string
     {
@@ -88,7 +96,7 @@ class NumeracionService
                 'PROV_CORRELATIVO_OFERTA_ANIO' => $anioActual,
             ]);
 
-        return sprintf('CP-%03d-%d', $nuevo, $anioActual);
+        return sprintf('CP-%03d-%d-%d', $nuevo, $anioActual, $proveedorId);
     }
 
     /**
