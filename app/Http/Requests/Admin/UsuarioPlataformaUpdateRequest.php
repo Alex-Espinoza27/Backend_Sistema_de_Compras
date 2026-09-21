@@ -18,8 +18,19 @@ class UsuarioPlataformaUpdateRequest extends FormRequest
     public function rules(): array
     {
         return [
-            'nombre' => ['required', 'string', 'max:120'],
+            'dni' => [
+                'required',
+                'string',
+                'digits:8',
+                Rule::unique('users', 'dni')
+                    ->ignore($this->route('id'))
+                    ->where(fn ($q) => $q->where('entidad_id', $this->input('entidad_id'))),
+            ],
+            'nombres' => ['required', 'string', 'max:100'],
+            'apellido_paterno' => ['required', 'string', 'max:100'],
+            'apellido_materno' => ['required', 'string', 'max:100'],
             'correo' => ['required', 'email', 'max:120', Rule::unique('users', 'email')->ignore($this->route('id'))],
+            'sexo' => ['required', 'string', Rule::in(['M', 'F'])],
             'rol' => ['nullable', Rule::exists('roles', 'name')->where(fn ($q) => $q->where('name', '!=', 'PROVEEDOR'))],
             'entidad_id' => ['nullable', 'integer'],
         ];

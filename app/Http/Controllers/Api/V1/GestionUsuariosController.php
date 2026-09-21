@@ -30,15 +30,22 @@ class GestionUsuariosController extends Controller
 
     public function index(UsuarioPlataformaIndexRequest $request): JsonResponse
     {
-        $columnaOrden = ['nombre' => 'name', 'email' => 'email'][$request->input('ordenar_por', 'nombre')] ?? 'name';
+        $columnaOrden = ['nombre' => 'name', 'email' => 'email', 'dni' => 'dni'][$request->input('ordenar_por', 'nombre')] ?? 'name';
 
         $query = $this->queryBase()
-            ->select(['id', 'name', 'email', 'entidad_id'])
+            ->select(['id', 'name', 'email', 'dni', 'nombres', 'apellido_paterno', 'apellido_materno', 'sexo', 'entidad_id'])
             ->with(['entidad' => fn ($q) => $q->select(['ENTI_ID', 'ENTI_RAZON_SOCIAL'])])
             ->when($request->filled('rol'), fn ($q) => $q->whereHas('roles', fn ($sub) => $sub->where('name', $request->input('rol'))))
             ->when($request->filled('buscar'), function ($q) use ($request) {
                 $buscar = $request->string('buscar');
-                $q->where(fn ($sub) => $sub->where('name', 'ilike', "%{$buscar}%")->orWhere('email', 'ilike', "%{$buscar}%"));
+                $q->where(fn ($sub) => $sub
+                    ->where('name', 'ilike', "%{$buscar}%")
+                    ->orWhere('email', 'ilike', "%{$buscar}%")
+                    ->orWhere('dni', 'ilike', "%{$buscar}%")
+                    ->orWhere('nombres', 'ilike', "%{$buscar}%")
+                    ->orWhere('apellido_paterno', 'ilike', "%{$buscar}%")
+                    ->orWhere('apellido_materno', 'ilike', "%{$buscar}%")
+                );
             })
             ->orderBy($columnaOrden, $request->input('direccion', 'asc'));
 
@@ -51,6 +58,11 @@ class GestionUsuariosController extends Controller
             'id' => $u->id,
             'nombre' => $u->name,
             'correo' => $u->email,
+            'dni' => $u->dni,
+            'nombres' => $u->nombres,
+            'apellido_paterno' => $u->apellido_paterno,
+            'apellido_materno' => $u->apellido_materno,
+            'sexo' => $u->sexo,
             'rol' => $u->getRoleNames()->first(),
             'entidad' => $u->entidad ? ['entidad_id' => $u->entidad->ENTI_ID, 'razon_social' => $u->entidad->ENTI_RAZON_SOCIAL] : null,
         ]);
@@ -61,7 +73,7 @@ class GestionUsuariosController extends Controller
     public function show(int $id): JsonResponse
     {
         $usuario = $this->queryBase()
-            ->select(['id', 'name', 'email', 'entidad_id'])
+            ->select(['id', 'name', 'email', 'dni', 'nombres', 'apellido_paterno', 'apellido_materno', 'sexo', 'entidad_id'])
             ->with(['entidad' => fn ($q) => $q->select(['ENTI_ID', 'ENTI_RAZON_SOCIAL'])])
             ->findOrFail($id);
 
@@ -69,6 +81,11 @@ class GestionUsuariosController extends Controller
             'id' => $usuario->id,
             'nombre' => $usuario->name,
             'correo' => $usuario->email,
+            'dni' => $usuario->dni,
+            'nombres' => $usuario->nombres,
+            'apellido_paterno' => $usuario->apellido_paterno,
+            'apellido_materno' => $usuario->apellido_materno,
+            'sexo' => $usuario->sexo,
             'rol' => $usuario->getRoleNames()->first(),
             'entidad' => $usuario->entidad ? ['entidad_id' => $usuario->entidad->ENTI_ID, 'razon_social' => $usuario->entidad->ENTI_RAZON_SOCIAL] : null,
         ]);

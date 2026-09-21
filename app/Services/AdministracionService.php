@@ -36,10 +36,17 @@ class AdministracionService
      * Request). Mismo patrón que `EntidadService::crearFilaUsuario`. */
     public function crearUsuarioPlataforma(array $datos): User
     {
-        $user = DB::transaction(function () use ($datos) {
+        $nombreCompleto = trim("{$datos['nombres']} {$datos['apellido_paterno']} {$datos['apellido_materno']}");
+
+        $user = DB::transaction(function () use ($datos, $nombreCompleto) {
             $user = User::create([
-                'name' => $datos['nombre'],
+                'name' => $nombreCompleto,
                 'email' => $datos['correo'],
+                'dni' => $datos['dni'] ?? null,
+                'nombres' => $datos['nombres'] ?? null,
+                'apellido_paterno' => $datos['apellido_paterno'] ?? null,
+                'apellido_materno' => $datos['apellido_materno'] ?? null,
+                'sexo' => $datos['sexo'] ?? null,
                 'password' => Str::random(32),
                 'entidad_id' => $datos['rol'] === 'ENTIDAD' ? $datos['entidad_id'] : null,
             ]);
@@ -58,16 +65,26 @@ class AdministracionService
 
     public function actualizarUsuarioPlataforma(User $usuario, array $datos): User
     {
-        $valorAnterior = $usuario->only(['name', 'email']);
+        $valorAnterior = $usuario->only(['name', 'email', 'dni', 'nombres', 'apellido_paterno', 'apellido_materno', 'sexo']);
 
-        $usuario->update(['name' => $datos['nombre'], 'email' => $datos['correo']]);
+        $nombreCompleto = trim("{$datos['nombres']} {$datos['apellido_paterno']} {$datos['apellido_materno']}");
+
+        $usuario->update([
+            'name' => $nombreCompleto,
+            'email' => $datos['correo'],
+            'dni' => $datos['dni'] ?? null,
+            'nombres' => $datos['nombres'] ?? null,
+            'apellido_paterno' => $datos['apellido_paterno'] ?? null,
+            'apellido_materno' => $datos['apellido_materno'] ?? null,
+            'sexo' => $datos['sexo'] ?? null,
+        ]);
 
         if (! empty($datos['rol'])) {
             $usuario->syncRoles([$datos['rol']]);
             $usuario->update(['entidad_id' => $datos['rol'] === 'ENTIDAD' ? $datos['entidad_id'] : null]);
         }
 
-        $this->auditoria->registrar('ADMINISTRACION', 'ACTUALIZAR', 'users', $usuario->id, $valorAnterior, $usuario->only(['name', 'email']));
+        $this->auditoria->registrar('ADMINISTRACION', 'ACTUALIZAR', 'users', $usuario->id, $valorAnterior, $usuario->only(['name', 'email', 'dni', 'nombres', 'apellido_paterno', 'apellido_materno', 'sexo']));
 
         return $usuario;
     }
