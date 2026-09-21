@@ -22,6 +22,11 @@ class RequerimientoIndexRequest extends FormRequest
             'convocado' => ['nullable', Rule::in(['true', 'false', '1', '0'])],
             // Solo con efecto para ADMINISTRADOR/AUDITOR (05C hardening).
             'entidad_id' => ['nullable', 'integer', Rule::exists('ENTIDAD', 'ENTI_ID')],
+            // Filtro por fecha de creación (05C hardening, pedido
+            // explícitamente por el usuario — antes este listado no tenía
+            // ningún filtro de fechas).
+            'desde' => ['nullable', 'date'],
+            'hasta' => ['nullable', 'date'],
             'ordenar_por' => ['nullable', Rule::in(['numero', 'objeto', 'tipo', 'fecha_creacion'])],
             'direccion' => ['nullable', Rule::in(['asc', 'desc'])],
             'pagina' => ['nullable', 'integer', 'min:1'],

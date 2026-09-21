@@ -158,8 +158,11 @@ class ReporteService
             ->select(['CONV_ID', 'CONV_NUMERO', 'CONV_NOMBRE_SERVICIO', 'CONV_ENTIDAD_ID', 'CONV_REQUERIMIENTO_ID', 'CONV_OFERTA_ADJUDICADA_ID', 'CONV_FECHA_INICIO', 'CONV_FECHA_FIN', 'CONV_FECHA_RESULTADO'])
             ->where('CONV_ESTADO_ID', $estadoAdjudicadaId)
             ->when($filtros['entidad_id'] ?? null, fn (Builder $q, $v) => $q->where('CONV_ENTIDAD_ID', $v))
-            ->when($filtros['desde'] ?? null, fn (Builder $q, $v) => $q->where('CONV_FECHA_RESULTADO', '>=', $v))
-            ->when($filtros['hasta'] ?? null, fn (Builder $q, $v) => $q->where('CONV_FECHA_RESULTADO', '<=', $v))
+            // `whereDate` compara solo la parte de fecha: "hasta" así incluye
+            // el día completo, no solo la medianoche (mismo bug corregido en
+            // ConvocatoriaController/AuditoriaController, 05C hardening).
+            ->when($filtros['desde'] ?? null, fn (Builder $q, $v) => $q->whereDate('CONV_FECHA_RESULTADO', '>=', $v))
+            ->when($filtros['hasta'] ?? null, fn (Builder $q, $v) => $q->whereDate('CONV_FECHA_RESULTADO', '<=', $v))
             ->when($filtros['tipo_requerimiento'] ?? null, fn (Builder $q, $v) => $q->whereHas('requerimiento', fn ($sub) => $sub->where('REQU_TIPO', $v)))
             ->when($filtros['rubro_id'] ?? null, fn (Builder $q, $v) => $q->whereHas('requerimiento.rubros', fn ($sub) => $sub->where('RUBR_ID', $v)))
             ->with([
@@ -188,8 +191,8 @@ class ReporteService
                 $estadoId = Estado::where('ESTA_CONTEXTO', 'CONVOCATORIA')->where('ESTA_CODIGO', $v)->value('ESTA_ID');
                 $q->where('CONV_ESTADO_ID', $estadoId);
             })
-            ->when($filtros['desde'] ?? null, fn (Builder $q, $v) => $q->where('CONV_FECHA_PUBLICACION', '>=', $v))
-            ->when($filtros['hasta'] ?? null, fn (Builder $q, $v) => $q->where('CONV_FECHA_PUBLICACION', '<=', $v))
+            ->when($filtros['desde'] ?? null, fn (Builder $q, $v) => $q->whereDate('CONV_FECHA_PUBLICACION', '>=', $v))
+            ->when($filtros['hasta'] ?? null, fn (Builder $q, $v) => $q->whereDate('CONV_FECHA_PUBLICACION', '<=', $v))
             ->when($filtros['tipo_requerimiento'] ?? null, fn (Builder $q, $v) => $q->whereHas('requerimiento', fn ($sub) => $sub->where('REQU_TIPO', $v)))
             ->when($filtros['rubro_id'] ?? null, fn (Builder $q, $v) => $q->whereHas('requerimiento.rubros', fn ($sub) => $sub->where('RUBR_ID', $v)))
             ->with([
@@ -210,8 +213,8 @@ class ReporteService
                 fn ($sub) => $sub->where('REQU_AREA_ID', $filtros['area_id']),
             ))
             ->when($filtros['entidad_id'] ?? null, fn (Builder $q, $v) => $q->where('CONV_ENTIDAD_ID', $v))
-            ->when($filtros['desde'] ?? null, fn (Builder $q, $v) => $q->where('CONV_FECHA_RESULTADO', '>=', $v))
-            ->when($filtros['hasta'] ?? null, fn (Builder $q, $v) => $q->where('CONV_FECHA_RESULTADO', '<=', $v))
+            ->when($filtros['desde'] ?? null, fn (Builder $q, $v) => $q->whereDate('CONV_FECHA_RESULTADO', '>=', $v))
+            ->when($filtros['hasta'] ?? null, fn (Builder $q, $v) => $q->whereDate('CONV_FECHA_RESULTADO', '<=', $v))
             ->when($filtros['tipo_requerimiento'] ?? null, fn (Builder $q, $v) => $q->whereHas('requerimiento', fn ($sub) => $sub->where('REQU_TIPO', $v)))
             ->when($filtros['rubro_id'] ?? null, fn (Builder $q, $v) => $q->whereHas('requerimiento.rubros', fn ($sub) => $sub->where('RUBR_ID', $v)))
             ->with([
@@ -238,8 +241,8 @@ class ReporteService
             ])
             ->when($filtros['proveedor_id'] ?? null, fn (Builder $q, $v) => $q->where('OFER_PROVEEDOR_ID', $v))
             ->when($filtros['estado'] ?? null, fn (Builder $q, $v) => $q->whereHas('estado', fn ($sub) => $sub->where('ESTA_CODIGO', $v)))
-            ->when($filtros['desde'] ?? null, fn (Builder $q, $v) => $q->where('OFER_FECHA_ENVIO', '>=', $v))
-            ->when($filtros['hasta'] ?? null, fn (Builder $q, $v) => $q->where('OFER_FECHA_ENVIO', '<=', $v))
+            ->when($filtros['desde'] ?? null, fn (Builder $q, $v) => $q->whereDate('OFER_FECHA_ENVIO', '>=', $v))
+            ->when($filtros['hasta'] ?? null, fn (Builder $q, $v) => $q->whereDate('OFER_FECHA_ENVIO', '<=', $v))
             ->when($filtros['entidad_id'] ?? null, fn (Builder $q, $v) => $q->whereHas('convocatoria', fn ($sub) => $sub->where('CONV_ENTIDAD_ID', $v)))
             ->when($filtros['tipo_comprobante_id'] ?? null, fn (Builder $q, $v) => $q->where('OFER_TIPO_COMPROBANTE_ID', $v))
             ->with([

@@ -29,7 +29,7 @@ class RequerimientoUpdateRequest extends FormRequest
             'tipo' => ['required', Rule::in(['BIEN', 'SERVICIO'])],
             // Un requerimiento puede tener más de un rubro (05C hardening).
             'rubro_ids' => ['nullable', 'array'],
-            'rubro_ids.*' => ['integer', Rule::exists('RUBRO', 'RUBR_ID')->where(fn ($q) => $q->where('RUBR_TIPO', $this->input('tipo')))],
+            'rubro_ids.*' => ['integer', Rule::exists('RUBRO', 'RUBR_ID')->where(fn ($q) => $q->where('RUBR_TIPO', $this->input('tipo'))->where('RUBR_ACTIVO', true))],
             // Catálogo de áreas por entidad (05C hardening) — reemplaza el
             // texto libre; debe ser un área activa de la propia entidad.
             'area_id' => [
@@ -40,7 +40,7 @@ class RequerimientoUpdateRequest extends FormRequest
             'items' => ['required', 'array', 'min:1'],
             'items.*.numero' => ['required', 'integer', 'min:1', 'distinct'],
             'items.*.descripcion' => ['required', 'string'],
-            'items.*.unidad_medida_id' => ['required', 'integer', Rule::exists('UNIDAD_MEDIDA', 'UNME_ID')],
+            'items.*.unidad_medida_id' => ['required', 'integer', Rule::exists('UNIDAD_MEDIDA', 'UNME_ID')->where(fn ($q) => $q->where('UNME_ACTIVO', true))],
             'items.*.cantidad' => ['required', 'numeric', 'min:1', 'max:10000000'],
             // Presentación/contenido opcional (05C hardening, ej. "500 ml"
             // cuando la unidad de medida por sí sola no basta).

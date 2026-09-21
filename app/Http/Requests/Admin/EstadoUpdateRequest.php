@@ -20,6 +20,7 @@ class EstadoUpdateRequest extends FormRequest
             'nombre' => ['required', 'string', 'max:60'],
             'color' => ['required', 'string', 'max:20'],
             'orden' => ['required', 'integer', 'min:1'],
+            'activo' => ['required', 'boolean'],
         ];
     }
 }

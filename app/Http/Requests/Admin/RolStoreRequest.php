@@ -2,6 +2,7 @@
 
 namespace App\Http\Requests\Admin;
 
+use App\Services\AdministracionService;
 use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Validation\Rule;
 
@@ -14,8 +15,6 @@ use Illuminate\Validation\Rule;
  */
 class RolStoreRequest extends FormRequest
 {
-    private const RESERVADOS = ['ADMINISTRADOR', 'AUDITOR', 'ENTIDAD', 'PROVEEDOR'];
-
     public function authorize(): bool
     {
         return true;
@@ -27,7 +26,7 @@ class RolStoreRequest extends FormRequest
             'nombre' => [
                 'required', 'string', 'max:40',
                 'regex:/^[A-Z_]+$/',
-                Rule::notIn(self::RESERVADOS),
+                Rule::notIn(AdministracionService::ROLES_RESERVADOS),
                 'unique:roles,name',
             ],
             'permisos' => ['array'],

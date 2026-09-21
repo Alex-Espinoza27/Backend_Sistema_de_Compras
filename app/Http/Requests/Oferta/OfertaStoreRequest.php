@@ -26,7 +26,7 @@ class OfertaStoreRequest extends FormRequest
             // en `05C_FRONTEND_FASES.md`).
             'tipo_comprobante_id' => [
                 Rule::requiredIf(fn () => $this->tipoConvocatoria() === 'SERVICIO'),
-                'nullable', 'integer', Rule::exists('TIPO_COMPROBANTE', 'TICO_ID'),
+                'nullable', 'integer', Rule::exists('TIPO_COMPROBANTE', 'TICO_ID')->where(fn ($q) => $q->where('TICO_ACTIVO', true)),
             ],
             'items' => ['required', 'array', 'min:1'],
             'items.*.requerimiento_item_id' => ['required', 'integer', Rule::exists('REQUERIMIENTO_ITEM', 'REIT_ID')],

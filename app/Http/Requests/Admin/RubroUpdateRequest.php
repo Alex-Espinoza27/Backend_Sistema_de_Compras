@@ -18,6 +18,7 @@ class RubroUpdateRequest extends FormRequest
             'tipo' => ['required', Rule::in(['BIEN', 'SERVICIO'])],
             'codigo' => ['required', 'string', 'max:20', Rule::unique('RUBRO', 'RUBR_CODIGO')->where(fn ($q) => $q->where('RUBR_TIPO', $this->input('tipo')))->ignore($this->route('id'), 'RUBR_ID')],
             'nombre' => ['required', 'string', 'max:100'],
+            'activo' => ['required', 'boolean'],
         ];
     }
 }

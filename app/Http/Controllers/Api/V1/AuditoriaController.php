@@ -78,8 +78,12 @@ class AuditoriaController extends Controller
             ->when($request->filled('modulo'), fn ($q) => $q->where('AUDI_MODULO', $request->input('modulo')))
             ->when($request->filled('accion'), fn ($q) => $q->where('AUDI_ACCION', $request->input('accion')))
             ->when($request->filled('tabla'), fn ($q) => $q->where('AUDI_TABLA', $request->input('tabla')))
-            ->when($request->filled('desde'), fn ($q) => $q->where('AUDI_FECHA', '>=', $request->input('desde')))
-            ->when($request->filled('hasta'), fn ($q) => $q->where('AUDI_FECHA', '<=', $request->input('hasta')))
+            // `whereDate` compara solo la parte de fecha: "hasta" así incluye
+            // el día completo, no solo la medianoche (mismo bug corregido en
+            // ConvocatoriaController — relevante ahora que el filtro por
+            // defecto del frontend es "hoy", 05C hardening).
+            ->when($request->filled('desde'), fn ($q) => $q->whereDate('AUDI_FECHA', '>=', $request->input('desde')))
+            ->when($request->filled('hasta'), fn ($q) => $q->whereDate('AUDI_FECHA', '<=', $request->input('hasta')))
             ->when($request->filled('buscar'), function ($q) use ($request) {
                 $buscar = $request->string('buscar');
                 $q->where(fn ($sub) => $sub->where('AUDI_ENDPOINT', 'ilike', "%{$buscar}%")->orWhere('AUDI_MODULO', 'ilike', "%{$buscar}%"));

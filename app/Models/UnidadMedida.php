@@ -20,5 +20,13 @@ class UnidadMedida extends Model
     protected $fillable = [
         'UNME_CODIGO',
         'UNME_NOMBRE',
+        'UNME_ACTIVO',
     ];
+
+    protected function casts(): array
+    {
+        return [
+            'UNME_ACTIVO' => 'boolean',
+        ];
+    }
 }

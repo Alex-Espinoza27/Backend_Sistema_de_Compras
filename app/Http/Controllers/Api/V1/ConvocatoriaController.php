@@ -69,8 +69,13 @@ class ConvocatoriaController extends Controller
                     ->whereDoesntHave('ofertas', fn ($sub) => $sub->whereHas('estado', fn ($e) => $e->where('ESTA_CODIGO', 'EN_EVALUACION')));
             })
             ->when($esAdminOAuditor && $request->filled('entidad_id'), fn ($q) => $q->where('CONV_ENTIDAD_ID', $request->integer('entidad_id')))
-            ->when($request->filled('desde'), fn ($q) => $q->where('CONV_FECHA_FIN', '>=', $request->date('desde')))
-            ->when($request->filled('hasta'), fn ($q) => $q->where('CONV_FECHA_FIN', '<=', $request->date('hasta')))
+            // `whereDate` compara solo la parte de fecha: "hasta" así incluye
+            // el día completo, no solo la medianoche (bug real corregido acá,
+            // 05C hardening — con `where('CONV_FECHA_FIN', '<=', ...)` contra
+            // una columna datetime, "hasta hoy" excluía casi todo el día de
+            // hoy; se nota recién ahora que el filtro por defecto es "hoy").
+            ->when($request->filled('desde'), fn ($q) => $q->whereDate('CONV_FECHA_FIN', '>=', $request->input('desde')))
+            ->when($request->filled('hasta'), fn ($q) => $q->whereDate('CONV_FECHA_FIN', '<=', $request->input('hasta')))
             ->with(['estado' => fn ($q) => $q->select(['ESTA_ID', 'ESTA_CODIGO', 'ESTA_NOMBRE', 'ESTA_COLOR'])])
             ->orderBy($columnaOrden, $request->input('direccion', 'asc'));
 
@@ -157,9 +162,10 @@ class ConvocatoriaController extends Controller
 
     public function store(ConvocatoriaStoreRequest $request): JsonResponse
     {
-        $entidadId = $request->user()->entidad_id;
+        $user = $request->user();
+        $entidadId = $user->entidad_id;
 
-        if (! $entidadId) {
+        if (! $entidadId && ! $user->hasRole('ADMINISTRADOR')) {
             throw new HttpException(403, 'Debe pertenecer a una entidad para crear convocatorias.');
         }
 

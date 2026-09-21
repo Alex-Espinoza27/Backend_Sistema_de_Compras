@@ -17,6 +17,7 @@ class UnidadMedidaUpdateRequest extends FormRequest
         return [
             'codigo' => ['required', 'string', 'max:20', Rule::unique('UNIDAD_MEDIDA', 'UNME_CODIGO')->ignore($this->route('id'), 'UNME_ID')],
             'nombre' => ['required', 'string', 'max:60'],
+            'activo' => ['required', 'boolean'],
         ];
     }
 }

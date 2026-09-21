@@ -18,6 +18,7 @@ class TipoComprobanteUpdateRequest extends FormRequest
             'codigo' => ['required', 'string', 'max:20', Rule::unique('TIPO_COMPROBANTE', 'TICO_CODIGO')->ignore($this->route('id'), 'TICO_ID')],
             'nombre' => ['required', 'string', 'max:60'],
             'incluye_igv' => ['required', 'boolean'],
+            'activo' => ['required', 'boolean'],
         ];
     }
 }

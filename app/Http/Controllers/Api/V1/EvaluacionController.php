@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Api\V1;
 
 use App\Http\Controllers\Controller;
 use App\Http\Requests\Evaluacion\EvaluarOfertaRequest;
+use App\Http\Requests\Evaluacion\OfertasEvaluacionIndexRequest;
 use App\Models\Convocatoria;
 use App\Models\Estado;
 use App\Models\Oferta;
@@ -16,7 +17,7 @@ class EvaluacionController extends Controller
 {
     public function __construct(private EvaluacionService $evaluacionService) {}
 
-    public function ofertas(int $id): JsonResponse
+    public function ofertas(OfertasEvaluacionIndexRequest $request, int $id): JsonResponse
     {
         $convocatoria = Convocatoria::select(['CONV_ID', 'CONV_ESTADO_ID'])->findOrFail($id);
         $codigoConvocatoria = Estado::where('ESTA_ID', $convocatoria->CONV_ESTADO_ID)->value('ESTA_CODIGO');
@@ -27,7 +28,10 @@ class EvaluacionController extends Controller
             throw new HttpException(409, 'Las ofertas de esta convocatoria aún no están disponibles para evaluación.');
         }
 
-        $items = Oferta::query()
+        // Paginado (05C hardening, pedido explícitamente por el usuario): una
+        // convocatoria puede recibir más de 100 ofertas — antes se traían
+        // todas de un solo golpe.
+        $paginador = Oferta::query()
             ->select(['OFER_ID', 'OFER_PROVEEDOR_ID', 'OFER_CONSTANCIA_CODIGO', 'OFER_TOTAL_GENERAL', 'OFER_TIPO_COMPROBANTE_ID', 'OFER_EVAL_TECNICA', 'OFER_EVAL_LOGISTICA', 'OFER_ESTADO_ID', 'OFER_FECHA_ENVIO'])
             ->where('OFER_CONVOCATORIA_ID', $id)
             ->with([
@@ -36,20 +40,24 @@ class EvaluacionController extends Controller
                 'estado' => fn ($q) => $q->select(['ESTA_ID', 'ESTA_CODIGO', 'ESTA_COLOR']),
             ])
             ->orderBy('OFER_TOTAL_GENERAL')
-            ->get()
-            ->map(fn (Oferta $o) => [
-                'oferta_id' => $o->OFER_ID,
-                'constancia_codigo' => $o->OFER_CONSTANCIA_CODIGO,
-                'proveedor' => ['proveedor_id' => $o->proveedor->PROV_ID, 'numero_documento' => $o->proveedor->PROV_NUMERO_DOCUMENTO, 'razon_social' => $o->proveedor->PROV_RAZON_SOCIAL],
-                'total_general' => $o->OFER_TOTAL_GENERAL,
-                'tipo_comprobante' => $o->tipoComprobante->TICO_CODIGO,
-                'eval_tecnica' => $o->OFER_EVAL_TECNICA,
-                'eval_logistica' => $o->OFER_EVAL_LOGISTICA,
-                'estado' => ['codigo' => $o->estado->ESTA_CODIGO, 'color' => $o->estado->ESTA_COLOR],
-                'fecha_envio' => $o->OFER_FECHA_ENVIO,
-            ]);
+            ->paginate(
+                $request->integer('por_pagina', 15),
+                page: $request->integer('pagina', 1),
+            );
 
-        return ApiResponse::success(['items' => $items]);
+        $paginador->getCollection()->transform(fn (Oferta $o) => [
+            'oferta_id' => $o->OFER_ID,
+            'constancia_codigo' => $o->OFER_CONSTANCIA_CODIGO,
+            'proveedor' => ['proveedor_id' => $o->proveedor->PROV_ID, 'numero_documento' => $o->proveedor->PROV_NUMERO_DOCUMENTO, 'razon_social' => $o->proveedor->PROV_RAZON_SOCIAL],
+            'total_general' => $o->OFER_TOTAL_GENERAL,
+            'tipo_comprobante' => $o->tipoComprobante->TICO_CODIGO,
+            'eval_tecnica' => $o->OFER_EVAL_TECNICA,
+            'eval_logistica' => $o->OFER_EVAL_LOGISTICA,
+            'estado' => ['codigo' => $o->estado->ESTA_CODIGO, 'color' => $o->estado->ESTA_COLOR],
+            'fecha_envio' => $o->OFER_FECHA_ENVIO,
+        ]);
+
+        return ApiResponse::paginado($paginador);
     }
 
     public function evaluacionDetalle(int $id): JsonResponse

@@ -21,12 +21,14 @@ class TipoComprobante extends Model
         'TICO_CODIGO',
         'TICO_NOMBRE',
         'TICO_INCLUYE_IGV',
+        'TICO_ACTIVO',
     ];
 
     protected function casts(): array
     {
         return [
             'TICO_INCLUYE_IGV' => 'boolean',
+            'TICO_ACTIVO' => 'boolean',
         ];
     }
 }

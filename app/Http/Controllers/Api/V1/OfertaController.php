@@ -58,7 +58,11 @@ class OfertaController extends Controller
                 'presentacion' => $item->REIT_PRESENTACION,
             ]);
 
+        // Solo activos (05C hardening, pedido explícitamente por el
+        // usuario): un tipo de comprobante desactivado deja de ofrecerse
+        // en el formulario de postulación.
         $tiposComprobante = TipoComprobante::select(['TICO_ID', 'TICO_CODIGO', 'TICO_NOMBRE'])
+            ->where('TICO_ACTIVO', true)
             ->get()
             ->map(fn (TipoComprobante $t) => ['tipo_comprobante_id' => $t->TICO_ID, 'codigo' => $t->TICO_CODIGO, 'nombre' => $t->TICO_NOMBRE]);
 

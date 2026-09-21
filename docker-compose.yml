@@ -36,6 +36,12 @@ services:
   worker:
     image: compras-laperla-app:latest
     command: php artisan queue:work --tries=3 --sleep=3
+    # `queue:restart` (disparado desde AdministracionService al guardar
+    # credenciales SMTP) hace que el proceso `queue:work` termine el job en
+    # curso y se cierre solo — sin esta política, el contenedor se quedaba
+    # apagado hasta un reinicio manual, en vez de volver a levantarse con la
+    # configuración nueva.
+    restart: unless-stopped
     volumes:
       - ./:/var/www/html
     env_file:

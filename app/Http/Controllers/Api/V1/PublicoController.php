@@ -90,7 +90,12 @@ class PublicoController extends Controller
     /** Catálogo público de rubros para el paso 3 del registro de proveedor (B2). */
     public function rubros(): JsonResponse
     {
+        // Solo activos (05C hardening, pedido explícitamente por el usuario):
+        // un rubro desactivado deja de ofrecerse para selecciones nuevas —
+        // este catálogo público alimenta el registro de proveedor, el
+        // formulario de requerimientos y los filtros de reportes.
         $items = Rubro::select(['RUBR_ID', 'RUBR_TIPO', 'RUBR_CODIGO', 'RUBR_NOMBRE'])
+            ->where('RUBR_ACTIVO', true)
             ->orderBy('RUBR_TIPO')->orderBy('RUBR_CODIGO')->get()
             ->map(fn (Rubro $r) => ['rubro_id' => $r->RUBR_ID, 'tipo' => $r->RUBR_TIPO, 'codigo' => $r->RUBR_CODIGO, 'nombre' => $r->RUBR_NOMBRE]);
 

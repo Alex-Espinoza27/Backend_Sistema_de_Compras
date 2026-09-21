@@ -28,13 +28,15 @@ class ConvocatoriaService
         private ArchivoService $archivoService,
     ) {}
 
-    public function crear(array $datos, int $entidadId, ?UploadedFile $archivoPlantillaDj = null): Convocatoria
+    public function crear(array $datos, ?int $entidadId, ?UploadedFile $archivoPlantillaDj = null): Convocatoria
     {
         $requerimiento = Requerimiento::select(['REQU_ID', 'REQU_ENTIDAD_ID'])->findOrFail($datos['requerimiento_id']);
 
-        if ($requerimiento->REQU_ENTIDAD_ID !== $entidadId) {
+        if ($entidadId !== null && $requerimiento->REQU_ENTIDAD_ID !== $entidadId) {
             throw new HttpException(403, 'El requerimiento no pertenece a su entidad.');
         }
+
+        $entidadIdEfectiva = $entidadId ?? $requerimiento->REQU_ENTIDAD_ID;
 
         $tieneConvocatoria = Convocatoria::where('CONV_REQUERIMIENTO_ID', $requerimiento->REQU_ID)->exists();
 
@@ -44,10 +46,10 @@ class ConvocatoriaService
 
         $estadoBorradorId = Estado::where('ESTA_CONTEXTO', 'CONVOCATORIA')->where('ESTA_CODIGO', 'BORRADOR')->value('ESTA_ID');
 
-        return DB::transaction(function () use ($datos, $requerimiento, $entidadId, $estadoBorradorId, $archivoPlantillaDj) {
+        return DB::transaction(function () use ($datos, $requerimiento, $entidadIdEfectiva, $estadoBorradorId, $archivoPlantillaDj) {
             $convocatoria = Convocatoria::create([
                 'CONV_REQUERIMIENTO_ID' => $requerimiento->REQU_ID,
-                'CONV_ENTIDAD_ID' => $entidadId,
+                'CONV_ENTIDAD_ID' => $entidadIdEfectiva,
                 'CONV_NOMBRE_SERVICIO' => $datos['nombre_servicio'],
                 'CONV_FECHA_INICIO' => $this->aLimaUtc($datos['fecha_inicio']),
                 'CONV_FECHA_FIN' => $this->aLimaUtc($datos['fecha_fin']),

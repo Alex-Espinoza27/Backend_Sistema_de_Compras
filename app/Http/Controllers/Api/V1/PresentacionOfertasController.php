@@ -40,6 +40,11 @@ class PresentacionOfertasController extends Controller
                 $estadoId = Estado::where('ESTA_CONTEXTO', 'OFERTA')->where('ESTA_CODIGO', $request->input('estado'))->value('ESTA_ID');
                 $q->where('OFER_ESTADO_ID', $estadoId);
             })
+            // `whereDate` compara solo la parte de fecha: "hasta" así incluye
+            // el día completo, no solo la medianoche (05C hardening, pedido
+            // explícitamente por el usuario, con valor por defecto "hoy").
+            ->when($request->filled('desde'), fn ($q) => $q->whereDate('OFER_FECHA_ENVIO', '>=', $request->input('desde')))
+            ->when($request->filled('hasta'), fn ($q) => $q->whereDate('OFER_FECHA_ENVIO', '<=', $request->input('hasta')))
             ->with([
                 'convocatoria' => fn ($q) => $q->select(['CONV_ID', 'CONV_NUMERO', 'CONV_NOMBRE_SERVICIO']),
                 'proveedor' => fn ($q) => $q->select(['PROV_ID', 'PROV_NUMERO_DOCUMENTO', 'PROV_RAZON_SOCIAL']),

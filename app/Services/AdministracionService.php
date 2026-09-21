@@ -9,6 +9,7 @@ use App\Models\Proveedor;
 use App\Models\TipoDocumento;
 use App\Models\Uit;
 use App\Models\User;
+use Illuminate\Support\Facades\Artisan;
 use Illuminate\Support\Facades\Crypt;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Mail;
@@ -200,7 +201,11 @@ class AdministracionService
         return $proveedor->fresh();
     }
 
-    private const ROLES_RESERVADOS = ['ADMINISTRADOR', 'AUDITOR', 'ENTIDAD', 'PROVEEDOR'];
+    /** Pública (05C hardening): antes también vivía duplicada en
+     * `RolStoreRequest`, que ahora la referencia desde acá — una sola fuente
+     * de verdad, y el módulo Roles y Permisos también la usa para exponer
+     * `es_reservado` en `GET /admin/roles`. */
+    public const ROLES_RESERVADOS = ['ADMINISTRADOR', 'AUDITOR', 'ENTIDAD', 'PROVEEDOR'];
 
     /** Crea un rol nuevo tipo "staff interno" genérico (05C hardening) — solo
      * con los permisos que se le asignen, sin scoping por entidad ni acceso
@@ -216,22 +221,32 @@ class AdministracionService
         return $rol->fresh('permissions');
     }
 
-    public function eliminarRol(string $rol): void
+    /** Desactivar en vez de eliminar (05C hardening, pedido explícitamente
+     * por el usuario): un rol desactivado deja de ofrecerse para
+     * asignaciones nuevas, pero no afecta a quienes ya lo tienen (decisión
+     * confirmada con el usuario) — por eso no hace falta bloquear cuando
+     * tiene usuarios asignados, a diferencia de lo que exigía eliminar. */
+    public function cambiarActivoRol(string $rol, bool $activo): Role
     {
-        if (in_array($rol, self::ROLES_RESERVADOS, true)) {
-            throw new HttpException(409, 'No se puede eliminar un rol del sistema.');
+        if (! $activo && in_array($rol, self::ROLES_RESERVADOS, true)) {
+            throw new HttpException(409, 'No se puede desactivar un rol del sistema.');
         }
 
         $roleModel = Role::where('name', $rol)->where('guard_name', 'web')->firstOrFail();
+        $valorAnterior = $roleModel->activo;
 
-        if (User::role($rol)->count() > 0) {
-            throw new HttpException(409, 'No se puede eliminar un rol con usuarios asignados.');
-        }
+        $roleModel->update(['activo' => $activo]);
 
-        $rolId = $roleModel->id;
-        $roleModel->delete();
+        $this->auditoria->registrar(
+            'ADMINISTRACION',
+            'ACTUALIZAR',
+            'roles',
+            $roleModel->id,
+            ['activo' => $valorAnterior],
+            ['activo' => $activo],
+        );
 
-        $this->auditoria->registrar('ADMINISTRACION', 'ELIMINAR', 'roles', $rolId);
+        return $roleModel->fresh('permissions');
     }
 
     public function actualizarPermisosRol(string $rol, array $permisos): Role
@@ -253,9 +268,16 @@ class AdministracionService
         return $roleModel->fresh('permissions');
     }
 
+    private const CLAVES_CORREO = [
+        'SMTP_HOST', 'SMTP_PUERTO', 'SMTP_USUARIO', 'SMTP_PASSWORD', 'SMTP_CIFRADO',
+        'CORREO_REMITENTE', 'CORREO_REMITENTE_NOMBRE',
+    ];
+
     public function actualizarConfiguracion(array $configuraciones): void
     {
-        DB::transaction(function () use ($configuraciones) {
+        $tocaConfiguracionCorreo = false;
+
+        DB::transaction(function () use ($configuraciones, &$tocaConfiguracionCorreo) {
             foreach ($configuraciones as $item) {
                 $config = Configuracion::where('CONF_CLAVE', $item['clave'])->firstOrFail();
                 $valorAnterior = $config->CONF_VALOR;
@@ -274,6 +296,10 @@ class AdministracionService
                 $nuevoValor = ($esSecreto && $valor !== '') ? Crypt::encryptString($valor) : $valor;
                 $config->update(['CONF_VALOR' => $nuevoValor]);
 
+                if (in_array($config->CONF_CLAVE, self::CLAVES_CORREO, true)) {
+                    $tocaConfiguracionCorreo = true;
+                }
+
                 $this->auditoria->registrar(
                     'ADMINISTRACION',
                     'ACTUALIZAR',
@@ -284,6 +310,19 @@ class AdministracionService
                 );
             }
         });
+
+        // El worker de colas (`queue:work`) carga la config de correo una
+        // sola vez al arrancar y la reutiliza mientras vive el proceso — sin
+        // esto, un cambio de credenciales SMTP queda "guardado" pero el
+        // worker sigue usando las viejas hasta que alguien lo reinicia a
+        // mano (bug real detectado en producción: la key se actualizaba en
+        // BD pero los correos seguían fallando con credenciales viejas).
+        // `queue:restart` señaliza al worker para que se reinicie solo tras
+        // terminar el job en curso; requiere que el proceso lo supervise y
+        // lo vuelva a levantar (`restart: unless-stopped` en docker-compose).
+        if ($tocaConfiguracionCorreo) {
+            Artisan::call('queue:restart');
+        }
     }
 
     /** Envía de forma síncrona (no encolada, a diferencia de

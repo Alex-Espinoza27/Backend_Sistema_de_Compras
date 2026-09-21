@@ -23,5 +23,13 @@ class Estado extends Model
         'ESTA_NOMBRE',
         'ESTA_COLOR',
         'ESTA_ORDEN',
+        'ESTA_ACTIVO',
     ];
+
+    protected function casts(): array
+    {
+        return [
+            'ESTA_ACTIVO' => 'boolean',
+        ];
+    }
 }

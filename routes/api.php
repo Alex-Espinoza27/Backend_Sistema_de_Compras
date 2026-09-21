@@ -182,7 +182,8 @@ Route::prefix('v1')->middleware('throttle:api')->group(function () {
         Route::get('/permisos', [AdminRolController::class, 'permisos'])->middleware('permission:roles_permisos.ver');
         Route::post('/roles', [AdminRolController::class, 'crear'])->middleware('permission:roles_permisos.gestionar');
         Route::put('/roles/{rol}/permisos', [AdminRolController::class, 'actualizarPermisos'])->middleware('permission:roles_permisos.gestionar');
-        Route::delete('/roles/{rol}', [AdminRolController::class, 'eliminar'])->middleware('permission:roles_permisos.gestionar');
+        Route::post('/roles/{rol}/activar', [AdminRolController::class, 'activar'])->middleware('permission:roles_permisos.gestionar');
+        Route::post('/roles/{rol}/desactivar', [AdminRolController::class, 'desactivar'])->middleware('permission:roles_permisos.gestionar');
 
         Route::get('/configuracion', [AdminConfiguracionController::class, 'index'])->middleware('permission:administracion.configuracion');
         Route::put('/configuracion', [AdminConfiguracionController::class, 'update'])->middleware('permission:administracion.configuracion');
@@ -195,22 +196,18 @@ Route::prefix('v1')->middleware('throttle:api')->group(function () {
             Route::get('/rubros', [AdminCatalogoController::class, 'rubrosIndex']);
             Route::post('/rubros', [AdminCatalogoController::class, 'rubrosStore']);
             Route::put('/rubros/{id}', [AdminCatalogoController::class, 'rubrosUpdate'])->whereNumber('id');
-            Route::delete('/rubros/{id}', [AdminCatalogoController::class, 'rubrosDestroy'])->whereNumber('id');
 
             Route::get('/unidades-medida', [AdminCatalogoController::class, 'unidadesMedidaIndex']);
             Route::post('/unidades-medida', [AdminCatalogoController::class, 'unidadesMedidaStore']);
             Route::put('/unidades-medida/{id}', [AdminCatalogoController::class, 'unidadesMedidaUpdate'])->whereNumber('id');
-            Route::delete('/unidades-medida/{id}', [AdminCatalogoController::class, 'unidadesMedidaDestroy'])->whereNumber('id');
 
             Route::get('/tipos-comprobante', [AdminCatalogoController::class, 'tiposComprobanteIndex']);
             Route::post('/tipos-comprobante', [AdminCatalogoController::class, 'tiposComprobanteStore']);
             Route::put('/tipos-comprobante/{id}', [AdminCatalogoController::class, 'tiposComprobanteUpdate'])->whereNumber('id');
-            Route::delete('/tipos-comprobante/{id}', [AdminCatalogoController::class, 'tiposComprobanteDestroy'])->whereNumber('id');
 
             Route::get('/estados', [AdminCatalogoController::class, 'estadosIndex']);
             Route::post('/estados', [AdminCatalogoController::class, 'estadosStore']);
             Route::put('/estados/{id}', [AdminCatalogoController::class, 'estadosUpdate'])->whereNumber('id');
-            Route::delete('/estados/{id}', [AdminCatalogoController::class, 'estadosDestroy'])->whereNumber('id');
         });
     });
 });

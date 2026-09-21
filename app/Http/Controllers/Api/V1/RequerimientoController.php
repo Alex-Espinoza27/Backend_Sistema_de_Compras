@@ -56,6 +56,12 @@ class RequerimientoController extends Controller
             // Solo ADMINISTRADOR/AUDITOR pueden filtrar por entidad (05C
             // hardening): para ENTIDAD el scope real ya lo aplica `DeSuEntidad`.
             ->when($esAdminOAuditor && $request->filled('entidad_id'), fn ($q) => $q->where('REQU_ENTIDAD_ID', $request->integer('entidad_id')))
+            // `whereDate` compara solo la parte de fecha (ignora la hora):
+            // "hasta" así incluye el día completo, no solo la medianoche
+            // (05C hardening, pedido explícitamente por el usuario — nuevo
+            // filtro, con el valor por defecto "hoy" que arma el frontend).
+            ->when($request->filled('desde'), fn ($q) => $q->whereDate('REQU_CREADO_EN', '>=', $request->input('desde')))
+            ->when($request->filled('hasta'), fn ($q) => $q->whereDate('REQU_CREADO_EN', '<=', $request->input('hasta')))
             ->with([
                 'rubros' => fn ($q) => $q->select(['RUBR_ID', 'RUBR_NOMBRE']),
                 'area' => fn ($q) => $q->select(['AREA_ID', 'AREA_NOMBRE']),
@@ -175,7 +181,11 @@ class RequerimientoController extends Controller
      * `requerimientos.ver`, que ENTIDAD sí tiene. */
     public function unidadesMedida(): JsonResponse
     {
+        // Solo activas (05C hardening, pedido explícitamente por el
+        // usuario): una unidad desactivada deja de ofrecerse en la
+        // sub-tabla de ítems de un requerimiento nuevo.
         $items = UnidadMedida::select(['UNME_ID', 'UNME_CODIGO', 'UNME_NOMBRE'])
+            ->where('UNME_ACTIVO', true)
             ->orderBy('UNME_CODIGO')
             ->get()
             ->map(fn (UnidadMedida $u) => ['unidad_medida_id' => $u->UNME_ID, 'codigo' => $u->UNME_CODIGO, 'nombre' => $u->UNME_NOMBRE]);

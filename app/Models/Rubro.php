@@ -22,7 +22,15 @@ class Rubro extends Model
         'RUBR_TIPO',
         'RUBR_CODIGO',
         'RUBR_NOMBRE',
+        'RUBR_ACTIVO',
     ];
+
+    protected function casts(): array
+    {
+        return [
+            'RUBR_ACTIVO' => 'boolean',
+        ];
+    }
 
     public function proveedores(): BelongsToMany
     {
