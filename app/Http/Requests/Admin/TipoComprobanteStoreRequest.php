@@ -14,7 +14,7 @@ class TipoComprobanteStoreRequest extends FormRequest
     public function rules(): array
     {
         return [
-            'codigo' => ['required', 'string', 'max:20', 'unique:TIPO_COMPROBANTE,TICO_CODIGO'],
+            'codigo' => ['nullable', 'string', 'max:20', 'unique:TIPO_COMPROBANTE,TICO_CODIGO'],
             'nombre' => ['required', 'string', 'max:60'],
             'incluye_igv' => ['required', 'boolean'],
         ];

@@ -76,8 +76,8 @@ class ReporteService
                 'entidad_ruc' => $fila->entidad?->ENTI_NUMERO_DOCUMENTO,
                 'tipo' => $fila->requerimiento?->REQU_TIPO,
                 'rubros' => $fila->requerimiento?->rubros->pluck('RUBR_NOMBRE')->implode(', '),
-                'fecha_inicio' => $fila->CONV_FECHA_INICIO,
-                'fecha_fin' => $fila->CONV_FECHA_FIN,
+                'fecha_inicio' => $this->formatearFecha($fila->CONV_FECHA_INICIO),
+                'fecha_fin' => $this->formatearFecha($fila->CONV_FECHA_FIN),
                 'proveedor_adjudicado' => $fila->ofertaAdjudicada?->proveedor?->PROV_RAZON_SOCIAL,
                 'proveedor_ruc' => $fila->ofertaAdjudicada?->proveedor?->PROV_NUMERO_DOCUMENTO,
                 'tipo_comprobante' => $fila->ofertaAdjudicada?->tipoComprobante?->TICO_CODIGO,
@@ -86,7 +86,7 @@ class ReporteService
                 'plazo_ejecucion' => $this->formatearPlazo($fila->ofertaAdjudicada?->OFER_PLAZO_EJECUCION_SEGUN_TDR, $fila->ofertaAdjudicada?->OFER_PLAZO_EJECUCION_DIAS),
                 'forma_pago' => $this->formatearPlazo($fila->ofertaAdjudicada?->OFER_FORMA_PAGO_SEGUN_TDR, $fila->ofertaAdjudicada?->OFER_FORMA_PAGO_DIAS),
                 'plazo_garantia' => $fila->ofertaAdjudicada?->OFER_PLAZO_GARANTIA,
-                'fecha_resultado' => $fila->CONV_FECHA_RESULTADO,
+                'fecha_resultado' => $this->formatearFecha($fila->CONV_FECHA_RESULTADO),
             ],
             'POR_PERIODO' => [
                 'numero' => $fila->CONV_NUMERO,
@@ -97,9 +97,9 @@ class ReporteService
                 'rubros' => $fila->requerimiento?->rubros->pluck('RUBR_NOMBRE')->implode(', '),
                 'estado' => $fila->estado?->ESTA_CODIGO,
                 'total_ofertas' => $fila->total_ofertas,
-                'fecha_inicio' => $fila->CONV_FECHA_INICIO,
-                'fecha_publicacion' => $fila->CONV_FECHA_PUBLICACION,
-                'fecha_resultado' => $fila->CONV_FECHA_RESULTADO,
+                'fecha_inicio' => $this->formatearFecha($fila->CONV_FECHA_INICIO),
+                'fecha_publicacion' => $this->formatearFecha($fila->CONV_FECHA_PUBLICACION),
+                'fecha_resultado' => $this->formatearFecha($fila->CONV_FECHA_RESULTADO),
                 'motivo_cierre' => $fila->CONV_MOTIVO_CIERRE,
             ],
             'POR_DEPENDENCIA' => [
@@ -112,9 +112,9 @@ class ReporteService
                 'area_usuaria' => $fila->requerimiento?->area?->AREA_NOMBRE,
                 'estado' => $fila->estado?->ESTA_CODIGO,
                 'total_ofertas' => $fila->total_ofertas,
-                'fecha_inicio' => $fila->CONV_FECHA_INICIO,
-                'fecha_fin' => $fila->CONV_FECHA_FIN,
-                'fecha_resultado' => $fila->CONV_FECHA_RESULTADO,
+                'fecha_inicio' => $this->formatearFecha($fila->CONV_FECHA_INICIO),
+                'fecha_fin' => $this->formatearFecha($fila->CONV_FECHA_FIN),
+                'fecha_resultado' => $this->formatearFecha($fila->CONV_FECHA_RESULTADO),
             ],
             'POR_PROVEEDOR' => [
                 'proveedor' => $fila->proveedor?->PROV_RAZON_SOCIAL,
@@ -135,10 +135,19 @@ class ReporteService
                 'contacto_telefono' => $fila->OFER_CONTACTO_TELEFONO,
                 'contacto_correo' => $fila->OFER_CONTACTO_CORREO,
                 'estado' => $fila->estado?->ESTA_CODIGO,
-                'fecha_envio' => $fila->OFER_FECHA_ENVIO,
+                'fecha_envio' => $this->formatearFecha($fila->OFER_FECHA_ENVIO),
             ],
             default => [],
         };
+    }
+
+    /** 05C hardening (pedido explícitamente por el usuario): sin esto, las
+     * fechas salían como el timestamp ISO crudo de Eloquent
+     * ("2026-10-23T17:09:50.000000Z") tanto en la tabla JSON como en el
+     * XLSX/PDF, que reutilizan este mismo mapeo. */
+    private function formatearFecha(?\Illuminate\Support\Carbon $fecha): ?string
+    {
+        return $fecha?->format('Y-m-d H:i');
     }
 
     private function formatearPlazo(?bool $segunTdr, ?int $dias): ?string

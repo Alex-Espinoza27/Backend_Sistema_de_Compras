@@ -16,33 +16,53 @@ return new class extends Migration
 {
     public function up(): void
     {
-        Schema::table('RUBRO', function (Blueprint $table) {
-            $table->boolean('RUBR_ACTIVO')->default(true);
-        });
-        Schema::table('UNIDAD_MEDIDA', function (Blueprint $table) {
-            $table->boolean('UNME_ACTIVO')->default(true);
-        });
-        Schema::table('TIPO_COMPROBANTE', function (Blueprint $table) {
-            $table->boolean('TICO_ACTIVO')->default(true);
-        });
-        Schema::table('ESTADO', function (Blueprint $table) {
-            $table->boolean('ESTA_ACTIVO')->default(true);
-        });
+        // Idempotente: en una BD nueva, `MigrationColumns::auditoria()` ya
+        // crea estas columnas desde la migración de creación de cada tabla.
+        // Esta migración solo las agrega si faltan (p.ej. BD creada antes de
+        // que el helper las incluyera).
+        if (! Schema::hasColumn('RUBRO', 'RUBR_ACTIVO')) {
+            Schema::table('RUBRO', function (Blueprint $table) {
+                $table->boolean('RUBR_ACTIVO')->default(true);
+            });
+        }
+        if (! Schema::hasColumn('UNIDAD_MEDIDA', 'UNME_ACTIVO')) {
+            Schema::table('UNIDAD_MEDIDA', function (Blueprint $table) {
+                $table->boolean('UNME_ACTIVO')->default(true);
+            });
+        }
+        if (! Schema::hasColumn('TIPO_COMPROBANTE', 'TICO_ACTIVO')) {
+            Schema::table('TIPO_COMPROBANTE', function (Blueprint $table) {
+                $table->boolean('TICO_ACTIVO')->default(true);
+            });
+        }
+        if (! Schema::hasColumn('ESTADO', 'ESTA_ACTIVO')) {
+            Schema::table('ESTADO', function (Blueprint $table) {
+                $table->boolean('ESTA_ACTIVO')->default(true);
+            });
+        }
     }
 
     public function down(): void
     {
-        Schema::table('RUBRO', function (Blueprint $table) {
-            $table->dropColumn('RUBR_ACTIVO');
-        });
-        Schema::table('UNIDAD_MEDIDA', function (Blueprint $table) {
-            $table->dropColumn('UNME_ACTIVO');
-        });
-        Schema::table('TIPO_COMPROBANTE', function (Blueprint $table) {
-            $table->dropColumn('TICO_ACTIVO');
-        });
-        Schema::table('ESTADO', function (Blueprint $table) {
-            $table->dropColumn('ESTA_ACTIVO');
-        });
+        if (Schema::hasColumn('RUBRO', 'RUBR_ACTIVO')) {
+            Schema::table('RUBRO', function (Blueprint $table) {
+                $table->dropColumn('RUBR_ACTIVO');
+            });
+        }
+        if (Schema::hasColumn('UNIDAD_MEDIDA', 'UNME_ACTIVO')) {
+            Schema::table('UNIDAD_MEDIDA', function (Blueprint $table) {
+                $table->dropColumn('UNME_ACTIVO');
+            });
+        }
+        if (Schema::hasColumn('TIPO_COMPROBANTE', 'TICO_ACTIVO')) {
+            Schema::table('TIPO_COMPROBANTE', function (Blueprint $table) {
+                $table->dropColumn('TICO_ACTIVO');
+            });
+        }
+        if (Schema::hasColumn('ESTADO', 'ESTA_ACTIVO')) {
+            Schema::table('ESTADO', function (Blueprint $table) {
+                $table->dropColumn('ESTA_ACTIVO');
+            });
+        }
     }
 };

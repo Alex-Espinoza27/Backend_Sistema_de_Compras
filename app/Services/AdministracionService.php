@@ -12,6 +12,7 @@ use App\Models\User;
 use Illuminate\Support\Facades\Artisan;
 use Illuminate\Support\Facades\Crypt;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Mail;
 use Illuminate\Support\Facades\Password;
 use Illuminate\Support\Str;
@@ -43,10 +44,13 @@ class AdministracionService
                 'name' => $nombreCompleto,
                 'email' => $datos['correo'],
                 'dni' => $datos['dni'] ?? null,
+                'tipo_documento_id' => TipoDocumento::where('TIDO_CODIGO', $datos['tipo_documento'] ?? 'DNI')->value('TIDO_ID'),
                 'nombres' => $datos['nombres'] ?? null,
                 'apellido_paterno' => $datos['apellido_paterno'] ?? null,
                 'apellido_materno' => $datos['apellido_materno'] ?? null,
                 'sexo' => $datos['sexo'] ?? null,
+                'celular' => $datos['celular'] ?? null,
+                'fecha_nacimiento' => $datos['fecha_nacimiento'] ?? null,
                 'password' => Str::random(32),
                 'entidad_id' => $datos['rol'] === 'ENTIDAD' ? $datos['entidad_id'] : null,
             ]);
@@ -65,7 +69,8 @@ class AdministracionService
 
     public function actualizarUsuarioPlataforma(User $usuario, array $datos): User
     {
-        $valorAnterior = $usuario->only(['name', 'email', 'dni', 'nombres', 'apellido_paterno', 'apellido_materno', 'sexo']);
+        $camposAuditados = ['name', 'email', 'dni', 'tipo_documento_id', 'nombres', 'apellido_paterno', 'apellido_materno', 'sexo', 'celular', 'fecha_nacimiento'];
+        $valorAnterior = $usuario->only($camposAuditados);
 
         $nombreCompleto = trim("{$datos['nombres']} {$datos['apellido_paterno']} {$datos['apellido_materno']}");
 
@@ -73,10 +78,13 @@ class AdministracionService
             'name' => $nombreCompleto,
             'email' => $datos['correo'],
             'dni' => $datos['dni'] ?? null,
+            'tipo_documento_id' => TipoDocumento::where('TIDO_CODIGO', $datos['tipo_documento'] ?? 'DNI')->value('TIDO_ID'),
             'nombres' => $datos['nombres'] ?? null,
             'apellido_paterno' => $datos['apellido_paterno'] ?? null,
             'apellido_materno' => $datos['apellido_materno'] ?? null,
             'sexo' => $datos['sexo'] ?? null,
+            'celular' => $datos['celular'] ?? null,
+            'fecha_nacimiento' => $datos['fecha_nacimiento'] ?? null,
         ]);
 
         if (! empty($datos['rol'])) {
@@ -84,21 +92,31 @@ class AdministracionService
             $usuario->update(['entidad_id' => $datos['rol'] === 'ENTIDAD' ? $datos['entidad_id'] : null]);
         }
 
-        $this->auditoria->registrar('ADMINISTRACION', 'ACTUALIZAR', 'users', $usuario->id, $valorAnterior, $usuario->only(['name', 'email', 'dni', 'nombres', 'apellido_paterno', 'apellido_materno', 'sexo']));
+        $this->auditoria->registrar('ADMINISTRACION', 'ACTUALIZAR', 'users', $usuario->id, $valorAnterior, $usuario->only($camposAuditados));
 
         return $usuario;
     }
 
-    public function eliminarUsuarioPlataforma(User $usuario): void
+    /** Desactivar en vez de eliminar (05C hardening, pedido explícitamente por
+     * el usuario, mismo patrón que Proveedores/Catálogos/Roles): un usuario
+     * desactivado no puede iniciar sesión pero su registro, su histórico de
+     * auditoría y sus referencias (ej. `*_CREADO_POR`) se conservan intactos. */
+    public function desactivarUsuarioPlataforma(User $usuario): void
     {
-        if ($usuario->hasRole('ADMINISTRADOR') && User::role('ADMINISTRADOR')->count() <= 1) {
-            throw new HttpException(409, 'No se puede eliminar al último administrador.');
+        if ($usuario->hasRole('ADMINISTRADOR') && User::role('ADMINISTRADOR')->where('activo', true)->count() <= 1) {
+            throw new HttpException(409, 'No se puede desactivar al último administrador activo.');
         }
 
-        $userId = $usuario->id;
-        $usuario->delete();
+        $usuario->update(['activo' => false]);
 
-        $this->auditoria->registrar('ADMINISTRACION', 'ELIMINAR', 'users', $userId);
+        $this->auditoria->registrar('ADMINISTRACION', 'DESACTIVAR', 'users', $usuario->id);
+    }
+
+    public function activarUsuarioPlataforma(User $usuario): void
+    {
+        $usuario->update(['activo' => true]);
+
+        $this->auditoria->registrar('ADMINISTRACION', 'ACTIVAR', 'users', $usuario->id);
     }
 
     public function reactivarProveedor(Proveedor $proveedor): Proveedor
@@ -404,5 +422,23 @@ class AdministracionService
 
             return $uit;
         });
+    }
+
+    public function restablecerPasswordUsuario(User $usuario, ?string $nuevaPassword = null): string
+    {
+        if (! empty($nuevaPassword)) {
+            $usuario->password = Hash::make($nuevaPassword);
+            $usuario->save();
+
+            $this->auditoria->registrar('ADMINISTRACION', 'ACTUALIZAR', 'users', $usuario->id, ['motivo' => 'Restablecimiento manual de contraseña por administrador']);
+
+            return 'Contraseña actualizada correctamente.';
+        }
+
+        Password::sendResetLink(['email' => $usuario->email]);
+
+        $this->auditoria->registrar('ADMINISTRACION', 'ACTUALIZAR', 'users', $usuario->id, ['motivo' => 'Envío de enlace de restablecimiento por administrador']);
+
+        return 'Se ha enviado un enlace de restablecimiento al correo del usuario.';
     }
 }

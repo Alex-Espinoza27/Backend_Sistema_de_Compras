@@ -14,7 +14,7 @@ class UnidadMedidaStoreRequest extends FormRequest
     public function rules(): array
     {
         return [
-            'codigo' => ['required', 'string', 'max:20', 'unique:UNIDAD_MEDIDA,UNME_CODIGO'],
+            'codigo' => ['nullable', 'string', 'max:20', 'unique:UNIDAD_MEDIDA,UNME_CODIGO'],
             'nombre' => ['required', 'string', 'max:60'],
         ];
     }

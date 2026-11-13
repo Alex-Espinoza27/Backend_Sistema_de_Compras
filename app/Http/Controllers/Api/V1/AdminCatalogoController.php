@@ -9,14 +9,18 @@ use App\Http\Requests\Admin\RubroStoreRequest;
 use App\Http\Requests\Admin\RubroUpdateRequest;
 use App\Http\Requests\Admin\TipoComprobanteStoreRequest;
 use App\Http\Requests\Admin\TipoComprobanteUpdateRequest;
+use App\Http\Requests\Admin\TipoDocumentoStoreRequest;
+use App\Http\Requests\Admin\TipoDocumentoUpdateRequest;
 use App\Http\Requests\Admin\UnidadMedidaStoreRequest;
 use App\Http\Requests\Admin\UnidadMedidaUpdateRequest;
 use App\Models\Estado;
 use App\Models\Rubro;
 use App\Models\TipoComprobante;
+use App\Models\TipoDocumento;
 use App\Models\UnidadMedida;
 use App\Support\ApiResponse;
 use Illuminate\Http\JsonResponse;
+use Illuminate\Support\Str;
 
 class AdminCatalogoController extends Controller
 {
@@ -33,13 +37,39 @@ class AdminCatalogoController extends Controller
 
     public function rubrosStore(RubroStoreRequest $request): JsonResponse
     {
+        $tipo = $request->input('tipo');
+        $codigo = $request->input('codigo');
+
+        if (empty($codigo)) {
+            $prefijo = $tipo === 'BIEN' ? 'B-' : 'S-';
+            $codigos = Rubro::where('RUBR_TIPO', $tipo)
+                ->where('RUBR_CODIGO', 'LIKE', "{$prefijo}%")
+                ->pluck('RUBR_CODIGO');
+
+            $maxNum = 0;
+            foreach ($codigos as $c) {
+                if (preg_match('/^' . preg_quote($prefijo, '/') . '(\d+)$/', $c, $m)) {
+                    $val = (int) $m[1];
+                    if ($val > $maxNum) {
+                        $maxNum = $val;
+                    }
+                }
+            }
+            $num = $maxNum + 1;
+            $codigo = $prefijo . str_pad((string) $num, 2, '0', STR_PAD_LEFT);
+            while (Rubro::where('RUBR_CODIGO', $codigo)->exists()) {
+                $num++;
+                $codigo = $prefijo . str_pad((string) $num, 2, '0', STR_PAD_LEFT);
+            }
+        }
+
         $rubro = Rubro::create([
-            'RUBR_TIPO' => $request->input('tipo'),
-            'RUBR_CODIGO' => $request->input('codigo'),
+            'RUBR_TIPO' => $tipo,
+            'RUBR_CODIGO' => $codigo,
             'RUBR_NOMBRE' => $request->input('nombre'),
         ]);
 
-        return ApiResponse::success(['rubro_id' => $rubro->RUBR_ID], 'Rubro creado.', 201);
+        return ApiResponse::success(['rubro_id' => $rubro->RUBR_ID, 'codigo' => $codigo], 'Rubro creado.', 201);
     }
 
     public function rubrosUpdate(RubroUpdateRequest $request, int $id): JsonResponse
@@ -68,9 +98,26 @@ class AdminCatalogoController extends Controller
 
     public function unidadesMedidaStore(UnidadMedidaStoreRequest $request): JsonResponse
     {
-        $unidad = UnidadMedida::create(['UNME_CODIGO' => $request->input('codigo'), 'UNME_NOMBRE' => $request->input('nombre')]);
+        $codigo = $request->input('codigo');
+        $nombre = $request->input('nombre');
 
-        return ApiResponse::success(['unidad_medida_id' => $unidad->UNME_ID], 'Unidad de medida creada.', 201);
+        if (empty($codigo)) {
+            $base = strtoupper(preg_replace('/[^A-Za-z0-9]/', '', Str::ascii($nombre)));
+            $base = substr($base, 0, 16);
+            if (empty($base)) {
+                $base = 'UM';
+            }
+            $codigo = $base;
+            $contador = 1;
+            while (UnidadMedida::where('UNME_CODIGO', $codigo)->exists()) {
+                $codigo = substr($base, 0, 15) . '_' . $contador;
+                $contador++;
+            }
+        }
+
+        $unidad = UnidadMedida::create(['UNME_CODIGO' => $codigo, 'UNME_NOMBRE' => $nombre]);
+
+        return ApiResponse::success(['unidad_medida_id' => $unidad->UNME_ID, 'codigo' => $codigo], 'Unidad de medida creada.', 201);
     }
 
     public function unidadesMedidaUpdate(UnidadMedidaUpdateRequest $request, int $id): JsonResponse
@@ -98,13 +145,30 @@ class AdminCatalogoController extends Controller
 
     public function tiposComprobanteStore(TipoComprobanteStoreRequest $request): JsonResponse
     {
+        $codigo = $request->input('codigo');
+        $nombre = $request->input('nombre');
+
+        if (empty($codigo)) {
+            $base = strtoupper(preg_replace('/[^A-Za-z0-9_]/', '', Str::snake(Str::ascii($nombre))));
+            $base = substr($base, 0, 16);
+            if (empty($base)) {
+                $base = 'COMPROBANTE';
+            }
+            $codigo = $base;
+            $contador = 1;
+            while (TipoComprobante::where('TICO_CODIGO', $codigo)->exists()) {
+                $codigo = substr($base, 0, 15) . '_' . $contador;
+                $contador++;
+            }
+        }
+
         $tipo = TipoComprobante::create([
-            'TICO_CODIGO' => $request->input('codigo'),
-            'TICO_NOMBRE' => $request->input('nombre'),
+            'TICO_CODIGO' => $codigo,
+            'TICO_NOMBRE' => $nombre,
             'TICO_INCLUYE_IGV' => $request->boolean('incluye_igv'),
         ]);
 
-        return ApiResponse::success(['tipo_comprobante_id' => $tipo->TICO_ID], 'Tipo de comprobante creado.', 201);
+        return ApiResponse::success(['tipo_comprobante_id' => $tipo->TICO_ID, 'codigo' => $codigo], 'Tipo de comprobante creado.', 201);
     }
 
     public function tiposComprobanteUpdate(TipoComprobanteUpdateRequest $request, int $id): JsonResponse
@@ -160,5 +224,43 @@ class AdminCatalogoController extends Controller
         ]);
 
         return ApiResponse::success(null, 'Estado actualizado.');
+    }
+
+    // --- Tipos de documento ---
+
+    public function tiposDocumentoIndex(): JsonResponse
+    {
+        $items = TipoDocumento::select(['TIDO_ID', 'TIDO_CODIGO', 'TIDO_NOMBRE', 'TIDO_LONGITUD', 'TIDO_ACTIVO'])
+            ->orderBy('TIDO_CODIGO')->get()
+            ->map(fn (TipoDocumento $t) => [
+                'tipo_documento_id' => $t->TIDO_ID, 'codigo' => $t->TIDO_CODIGO,
+                'nombre' => $t->TIDO_NOMBRE, 'longitud' => $t->TIDO_LONGITUD, 'activo' => $t->TIDO_ACTIVO,
+            ]);
+
+        return ApiResponse::success($items);
+    }
+
+    public function tiposDocumentoStore(TipoDocumentoStoreRequest $request): JsonResponse
+    {
+        $tipo = TipoDocumento::create([
+            'TIDO_CODIGO' => strtoupper($request->input('codigo')),
+            'TIDO_NOMBRE' => $request->input('nombre'),
+            'TIDO_LONGITUD' => $request->input('longitud'),
+        ]);
+
+        return ApiResponse::success(['tipo_documento_id' => $tipo->TIDO_ID], 'Tipo de documento creado.', 201);
+    }
+
+    public function tiposDocumentoUpdate(TipoDocumentoUpdateRequest $request, int $id): JsonResponse
+    {
+        $tipo = TipoDocumento::findOrFail($id);
+        $tipo->update([
+            'TIDO_CODIGO' => strtoupper($request->input('codigo')),
+            'TIDO_NOMBRE' => $request->input('nombre'),
+            'TIDO_LONGITUD' => $request->input('longitud'),
+            'TIDO_ACTIVO' => $request->boolean('activo'),
+        ]);
+
+        return ApiResponse::success(null, 'Tipo de documento actualizado.');
     }
 }

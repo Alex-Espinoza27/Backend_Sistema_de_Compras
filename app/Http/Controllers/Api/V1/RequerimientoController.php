@@ -36,7 +36,7 @@ class RequerimientoController extends Controller
         $esAdminOAuditor = $request->user()->hasAnyRole(['ADMINISTRADOR', 'AUDITOR']);
 
         $query = Requerimiento::query()
-            ->select(['REQU_ID', 'REQU_ENTIDAD_ID', 'REQU_NUMERO', 'REQU_OBJETO', 'REQU_TIPO', 'REQU_AREA_ID', 'REQU_CREADO_EN'])
+            ->select(['REQU_ID', 'REQU_ENTIDAD_ID', 'REQU_NUMERO', 'REQU_OBJETO', 'REQU_TIPO', 'REQU_AREA_ID', 'REQU_ACTIVO', 'REQU_CREADO_EN'])
             ->withCount(['items as cantidad_items', 'convocatorias as convocatorias_count'])
             ->when($request->filled('buscar'), function ($q) use ($request) {
                 $buscar = $request->string('buscar');
@@ -79,6 +79,7 @@ class RequerimientoController extends Controller
             'numero' => $r->REQU_NUMERO,
             'objeto' => $r->REQU_OBJETO,
             'tipo' => $r->REQU_TIPO,
+            'activo' => $r->REQU_ACTIVO,
             'area' => $r->area ? ['area_id' => $r->area->AREA_ID, 'nombre' => $r->area->AREA_NOMBRE] : null,
             'entidad' => ['entidad_id' => $r->REQU_ENTIDAD_ID, 'sigla' => $r->entidad?->ENTI_SIGLA],
             'fecha_creacion' => $r->REQU_CREADO_EN,
@@ -150,13 +151,22 @@ class RequerimientoController extends Controller
         return ApiResponse::success(null, 'Requerimiento actualizado.');
     }
 
-    public function destroy(int $id): JsonResponse
+    public function desactivar(int $id): JsonResponse
     {
         $requerimiento = Requerimiento::select(['REQU_ID'])->findOrFail($id);
 
-        $this->requerimientoService->eliminar($requerimiento);
+        $this->requerimientoService->desactivar($requerimiento);
 
-        return ApiResponse::success(null, 'Requerimiento eliminado.');
+        return ApiResponse::success(null, 'Requerimiento desactivado.');
+    }
+
+    public function activar(int $id): JsonResponse
+    {
+        $requerimiento = Requerimiento::select(['REQU_ID'])->findOrFail($id);
+
+        $this->requerimientoService->activar($requerimiento);
+
+        return ApiResponse::success(null, 'Requerimiento activado.');
     }
 
     public function eliminarTdr(int $id, int $archivoId): JsonResponse

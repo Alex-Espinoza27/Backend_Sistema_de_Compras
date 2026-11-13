@@ -16,6 +16,7 @@ class ConvocatoriasRequest extends FormRequest
     {
         return [
             'estado_grupo' => ['required', Rule::in(['VIGENTES', 'EN_EVALUACION', 'CONCLUIDAS'])],
+            'estado_codigo' => ['nullable', 'string', 'max:50'],
             'entidad_id' => ['nullable', 'integer', Rule::exists('ENTIDAD', 'ENTI_ID')],
             'buscar' => ['nullable', 'string', 'max:150'],
             'tipo' => ['nullable', Rule::in(['BIEN', 'SERVICIO'])],

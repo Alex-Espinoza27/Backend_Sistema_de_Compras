@@ -114,13 +114,24 @@ class RequerimientoService
         });
     }
 
-    public function eliminar(Requerimiento $requerimiento): void
+    /** Desactivar en vez de eliminar (05C hardening, pedido explícitamente por
+     * el usuario, mismo patrón que Usuarios/Proveedores/Catálogos/Roles): no
+     * se borra ningún registro, el requerimiento queda listado con su estado
+     * en "Inactivo". A diferencia del `eliminar()` que reemplaza, esto no
+     * toca la convocatoria asociada (es una fila independiente) — por eso no
+     * reutiliza `asegurarSinConvocatoriaPublicada`, no hay nada que proteger. */
+    public function desactivar(Requerimiento $requerimiento): void
     {
-        $this->asegurarSinConvocatoriaPublicada($requerimiento, 'eliminar');
+        $requerimiento->update(['REQU_ACTIVO' => false]);
 
-        $requerimiento->delete();
+        $this->auditoria->registrar('REQUERIMIENTOS', 'DESACTIVAR', 'REQUERIMIENTO', $requerimiento->REQU_ID);
+    }
 
-        $this->auditoria->registrar('REQUERIMIENTOS', 'ELIMINAR', 'REQUERIMIENTO', $requerimiento->REQU_ID);
+    public function activar(Requerimiento $requerimiento): void
+    {
+        $requerimiento->update(['REQU_ACTIVO' => true]);
+
+        $this->auditoria->registrar('REQUERIMIENTOS', 'ACTIVAR', 'REQUERIMIENTO', $requerimiento->REQU_ID);
     }
 
     private function guardarItems(Requerimiento $requerimiento, array $items): void

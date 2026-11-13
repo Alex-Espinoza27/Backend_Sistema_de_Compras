@@ -126,9 +126,7 @@ class ConvocatoriaService
             ->where('ARCH_REFERENCIA_ID', $convocatoria->CONV_ID)
             ->exists();
 
-        $plantillaDefecto = Configuracion::where('CONF_CLAVE', 'PLANTILLA_DJ_DEFECTO')->value('CONF_VALOR');
-
-        if (! $tienePlantillaPropia && empty($plantillaDefecto)) {
+        if (! $tienePlantillaPropia && ! $this->plantillaDjDefectoArchivo()) {
             throw new HttpException(409, 'No existe plantilla de declaración jurada (propia ni por defecto); no se puede publicar.');
         }
 
@@ -283,6 +281,54 @@ class ConvocatoriaService
     }
 
     /**
+     * Amplía el plazo de postulación de una convocatoria ya publicada (05C
+     * hardening, pedido explícitamente por el usuario). `CONV_FECHA_FIN`
+     * sigue siendo la única fecha que lee el resto del sistema (vigencia en
+     * `OfertaService`, filtro "Vigentes" público, urgencia, exports,
+     * reportes, el job `convocatorias:vencer`) — se sobrescribe con la nueva
+     * fecha y el valor anterior se guarda en `CONV_FECHA_FIN_ANTERIOR`, solo
+     * para control interno (nunca se expone en el portal público).
+     *
+     * Solo se permite mientras sigue PUBLICADA: una vez que el job
+     * `convocatorias:vencer` la pasa a EN_EVALUACION, "ampliar" implicaría
+     * revertir ese cambio de estado, que es un caso distinto y no es lo que
+     * se pidió acá.
+     */
+    public function ampliarFechaFin(Convocatoria $convocatoria, string $nuevaFechaFin): Convocatoria
+    {
+        $estadoCodigo = Estado::where('ESTA_ID', $convocatoria->CONV_ESTADO_ID)->value('ESTA_CODIGO');
+
+        if ($estadoCodigo !== 'PUBLICADA') {
+            throw new HttpException(409, 'Solo se puede ampliar el plazo de una convocatoria publicada.');
+        }
+
+        $nueva = $this->aLimaUtc($nuevaFechaFin);
+
+        if ($nueva->lte($convocatoria->CONV_FECHA_FIN)) {
+            throw new HttpException(409, 'La nueva fecha de fin debe ser posterior a la fecha de fin actual.');
+        }
+
+        return DB::transaction(function () use ($convocatoria, $nueva) {
+            $anterior = $convocatoria->CONV_FECHA_FIN;
+
+            $convocatoria->CONV_FECHA_FIN_ANTERIOR = $anterior;
+            $convocatoria->CONV_FECHA_FIN = $nueva;
+            $convocatoria->save();
+
+            $this->auditoria->registrar(
+                'CONVOCATORIAS',
+                'AMPLIAR_FECHA_FIN',
+                'CONVOCATORIA',
+                $convocatoria->CONV_ID,
+                ['fecha_fin' => $anterior],
+                ['fecha_fin' => $nueva],
+            );
+
+            return $convocatoria->fresh();
+        });
+    }
+
+    /**
      * `fecha_inicio`/`fecha_fin` llegan como fecha+hora (`YYYY-MM-DDTHH:mm`,
      * 05C hardening — antes solo fecha, forzada a inicio/fin de día) desde el
      * formulario. La app corre en UTC (config('app.timezone')) pero Perú es
@@ -293,5 +339,50 @@ class ConvocatoriaService
     private function aLimaUtc(string $fechaHora): Carbon
     {
         return Carbon::parse($fechaHora, 'America/Lima')->utc();
+    }
+
+    /** `PLANTILLA_DJ_DEFECTO` guarda el `ARCH_ID` (como texto) de la
+     * plantilla subida desde Configuración — no un texto libre. 05C
+     * hardening (pedido explícitamente por el usuario): antes `publicar()`
+     * solo comprobaba que el valor no estuviera vacío (cualquier texto
+     * "pasaba"), mientras que la descarga real (`OfertaController`) sí
+     * exigía que fuera un ID numérico de un `Archivo` existente — un valor
+     * no numérico dejaba publicar pero nunca servía el archivo. Ahora ambos
+     * usan este mismo método. */
+    public function plantillaDjDefectoArchivo(): ?Archivo
+    {
+        $valor = Configuracion::where('CONF_CLAVE', 'PLANTILLA_DJ_DEFECTO')->value('CONF_VALOR');
+
+        if (! $valor || ! ctype_digit($valor)) {
+            return null;
+        }
+
+        return Archivo::select(['ARCH_ID', 'ARCH_NOMBRE_ORIGINAL', 'ARCH_RUTA'])->find((int) $valor);
+    }
+
+    public function definirPlantillaDjDefecto(UploadedFile $archivo): Archivo
+    {
+        $anterior = $this->plantillaDjDefectoArchivo();
+
+        $nuevo = $this->archivoService->subir($archivo, 'PLANTILLA_DJ_DEFECTO', 0);
+
+        Configuracion::updateOrCreate(['CONF_CLAVE' => 'PLANTILLA_DJ_DEFECTO'], ['CONF_VALOR' => (string) $nuevo->ARCH_ID]);
+
+        if ($anterior) {
+            $this->archivoService->eliminar($anterior);
+        }
+
+        return $nuevo;
+    }
+
+    public function quitarPlantillaDjDefecto(): void
+    {
+        $anterior = $this->plantillaDjDefectoArchivo();
+
+        Configuracion::where('CONF_CLAVE', 'PLANTILLA_DJ_DEFECTO')->update(['CONF_VALOR' => '']);
+
+        if ($anterior) {
+            $this->archivoService->eliminar($anterior);
+        }
     }
 }

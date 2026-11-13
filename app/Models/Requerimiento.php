@@ -33,7 +33,15 @@ class Requerimiento extends Model
         'REQU_DESCRIPCION',
         'REQU_TIPO',
         'REQU_AREA_ID',
+        'REQU_ACTIVO',
     ];
+
+    protected function casts(): array
+    {
+        return [
+            'REQU_ACTIVO' => 'boolean',
+        ];
+    }
 
     public function entidad(): BelongsTo
     {

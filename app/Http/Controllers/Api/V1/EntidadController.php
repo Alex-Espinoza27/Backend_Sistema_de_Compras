@@ -29,7 +29,7 @@ class EntidadController extends Controller
         ][$request->input('ordenar_por', 'razon_social')] ?? 'ENTI_RAZON_SOCIAL';
 
         $query = Entidad::query()
-            ->select(['ENTI_ID', 'ENTI_NUMERO_DOCUMENTO', 'ENTI_RAZON_SOCIAL', 'ENTI_SIGLA', 'ENTI_ESTADO_ID', 'ENTI_FECHA_SOLICITUD'])
+            ->select(['ENTI_ID', 'ENTI_NUMERO_DOCUMENTO', 'ENTI_RAZON_SOCIAL', 'ENTI_SIGLA', 'ENTI_CORREO', 'ENTI_TELEFONO', 'ENTI_ESTADO_ID', 'ENTI_FECHA_SOLICITUD'])
             ->withCount('convocatorias as convocatorias_total')
             ->when($request->filled('buscar'), function ($q) use ($request) {
                 $buscar = $request->string('buscar');
@@ -56,8 +56,12 @@ class EntidadController extends Controller
             'numero_documento' => $e->ENTI_NUMERO_DOCUMENTO,
             'razon_social' => $e->ENTI_RAZON_SOCIAL,
             'sigla' => $e->ENTI_SIGLA,
+            'correo' => $e->ENTI_CORREO,
+            'telefono' => $e->ENTI_TELEFONO,
             'estado' => ['codigo' => $e->estado->ESTA_CODIGO, 'nombre' => $e->estado->ESTA_NOMBRE, 'color' => $e->estado->ESTA_COLOR],
-            'fecha_solicitud' => $e->ENTI_FECHA_SOLICITUD,
+            // 05C hardening (pedido explícitamente por el usuario): sin el
+            // ->format(), salía el ISO crudo de Eloquent ("…T17:09:50.000000Z").
+            'fecha_solicitud' => $e->ENTI_FECHA_SOLICITUD?->format('Y-m-d H:i'),
             'convocatorias_total' => $e->convocatorias_total,
         ]);
 

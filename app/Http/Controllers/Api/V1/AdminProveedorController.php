@@ -28,7 +28,7 @@ class AdminProveedorController extends Controller
         ][$request->input('ordenar_por', 'razon_social')] ?? 'PROV_RAZON_SOCIAL';
 
         $query = Proveedor::query()
-            ->select(['PROV_ID', 'PROV_NUMERO_DOCUMENTO', 'PROV_RAZON_SOCIAL', 'PROV_CORREO', 'PROV_ESTADO_ID'])
+            ->select(['PROV_ID', 'PROV_NUMERO_DOCUMENTO', 'PROV_TIPO_DOCUMENTO_ID', 'PROV_TIPO_PERSONA', 'PROV_RAZON_SOCIAL', 'PROV_CORREO', 'PROV_TELEFONO', 'PROV_PERSONA_CONTACTO', 'PROV_ESTADO_ID'])
             ->when($request->filled('buscar'), function ($q) use ($request) {
                 $buscar = $request->string('buscar');
                 $q->where(function ($sub) use ($buscar) {
@@ -40,7 +40,10 @@ class AdminProveedorController extends Controller
                 $estadoId = Estado::where('ESTA_CONTEXTO', 'PROVEEDOR')->where('ESTA_CODIGO', $request->input('estado'))->value('ESTA_ID');
                 $q->where('PROV_ESTADO_ID', $estadoId);
             })
-            ->with(['estado' => fn ($q) => $q->select(['ESTA_ID', 'ESTA_CODIGO', 'ESTA_NOMBRE', 'ESTA_COLOR'])])
+            ->with([
+                'estado' => fn ($q) => $q->select(['ESTA_ID', 'ESTA_CODIGO', 'ESTA_NOMBRE', 'ESTA_COLOR']),
+                'tipoDocumento' => fn ($q) => $q->select(['TIDO_ID', 'TIDO_CODIGO']),
+            ])
             ->orderBy($columnaOrden, $request->input('direccion', 'asc'));
 
         $paginador = $query->paginate(
@@ -51,8 +54,12 @@ class AdminProveedorController extends Controller
         $paginador->getCollection()->transform(fn (Proveedor $p) => [
             'proveedor_id' => $p->PROV_ID,
             'numero_documento' => $p->PROV_NUMERO_DOCUMENTO,
+            'tipo_documento' => $p->tipoDocumento->TIDO_CODIGO,
+            'tipo_persona' => $p->PROV_TIPO_PERSONA,
             'razon_social' => $p->PROV_RAZON_SOCIAL,
             'correo' => $p->PROV_CORREO,
+            'telefono' => $p->PROV_TELEFONO,
+            'persona_contacto' => $p->PROV_PERSONA_CONTACTO,
             'estado' => ['codigo' => $p->estado->ESTA_CODIGO, 'nombre' => $p->estado->ESTA_NOMBRE, 'color' => $p->estado->ESTA_COLOR],
         ]);
 

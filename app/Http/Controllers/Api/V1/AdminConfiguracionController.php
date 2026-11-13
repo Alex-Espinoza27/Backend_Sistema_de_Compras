@@ -10,12 +10,17 @@ use App\Http\Requests\Admin\UitUpdateRequest;
 use App\Models\Configuracion;
 use App\Models\Uit;
 use App\Services\AdministracionService;
+use App\Services\ConvocatoriaService;
 use App\Support\ApiResponse;
 use Illuminate\Http\JsonResponse;
+use Illuminate\Http\Request;
 
 class AdminConfiguracionController extends Controller
 {
-    public function __construct(private AdministracionService $administracionService) {}
+    public function __construct(
+        private AdministracionService $administracionService,
+        private ConvocatoriaService $convocatoriaService,
+    ) {}
 
     public function index(): JsonResponse
     {
@@ -77,5 +82,26 @@ class AdminConfiguracionController extends Controller
         $this->administracionService->actualizarUit($uit, $request->validated());
 
         return ApiResponse::success(null, 'Valor de UIT actualizado.');
+    }
+
+    /** 05C hardening (pedido explícitamente por el usuario): `PLANTILLA_DJ_DEFECTO`
+     * era un campo de texto libre sin ninguna forma real de subir el archivo
+     * — nadie podía adivinar que ahí había que escribir el ID numérico de un
+     * `Archivo`. Ahora es un archivo real, igual que la plantilla propia de
+     * cada convocatoria. */
+    public function plantillaDjDefectoStore(Request $request): JsonResponse
+    {
+        $request->validate(['archivo' => ['required', 'file']]);
+
+        $archivo = $this->convocatoriaService->definirPlantillaDjDefecto($request->file('archivo'));
+
+        return ApiResponse::success(['archivo_id' => $archivo->ARCH_ID, 'nombre' => $archivo->ARCH_NOMBRE_ORIGINAL], 'Plantilla por defecto actualizada.');
+    }
+
+    public function plantillaDjDefectoDestroy(): JsonResponse
+    {
+        $this->convocatoriaService->quitarPlantillaDjDefecto();
+
+        return ApiResponse::success(null, 'Plantilla por defecto eliminada.');
     }
 }

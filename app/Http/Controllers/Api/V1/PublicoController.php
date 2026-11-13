@@ -87,6 +87,19 @@ class PublicoController extends Controller
             ->header('Cache-Control', 'public, max-age=60');
     }
 
+    /** Color de marca (05C hardening, pedido explícitamente por el usuario):
+     * público porque `App.vue` lo aplica al cargar, antes de cualquier login
+     * — así el header y los botones primarios de las pantallas públicas
+     * (portal, login, registro) también reflejan el color configurado. */
+    public function tema(): JsonResponse
+    {
+        $valor = Configuracion::where('CONF_CLAVE', 'COLOR_PRIMARIO')->value('CONF_VALOR');
+
+        return ApiResponse::success([
+            'color_primario' => ($valor && preg_match('/^#[0-9A-Fa-f]{6}$/', $valor)) ? $valor : null,
+        ])->header('Cache-Control', 'public, max-age=60');
+    }
+
     /** Catálogo público de rubros para el paso 3 del registro de proveedor (B2). */
     public function rubros(): JsonResponse
     {
@@ -142,6 +155,12 @@ class PublicoController extends Controller
             ])
             ->selectRaw('fn_convocatoria_urgencia("CONV_ID") as urgencia_dias')
             ->whereIn('CONV_ESTADO_ID', $estadosDelGrupo)
+            ->when($request->filled('estado_codigo'), function ($sub) use ($request, $estados) {
+                $codigo = $request->string('estado_codigo')->toString();
+                if (isset($estados[$codigo])) {
+                    $sub->where('CONV_ESTADO_ID', $estados[$codigo]);
+                }
+            })
             ->when($estadoGrupo === 'VIGENTES', function ($sub) use ($ahora) {
                 $sub->where('CONV_FECHA_INICIO', '<=', $ahora)->where('CONV_FECHA_FIN', '>=', $ahora);
             })

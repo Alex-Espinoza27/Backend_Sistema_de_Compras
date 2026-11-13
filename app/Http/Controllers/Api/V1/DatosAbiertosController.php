@@ -46,11 +46,28 @@ class DatosAbiertosController extends Controller
         $entidadId = $request->integer('entidad_id') ?: null;
         $borradorId = Estado::where('ESTA_CONTEXTO', 'CONVOCATORIA')->where('ESTA_CODIGO', 'BORRADOR')->value('ESTA_ID');
         $adjudicadaId = Estado::where('ESTA_CONTEXTO', 'CONVOCATORIA')->where('ESTA_CODIGO', 'ADJUDICADA')->value('ESTA_ID');
+        $publicadaId = Estado::where('ESTA_CONTEXTO', 'CONVOCATORIA')->where('ESTA_CODIGO', 'PUBLICADA')->value('ESTA_ID');
+        $ahora = now();
 
         $porEstado = Convocatoria::query()
             ->select(['CONV_ESTADO_ID'])
             ->selectRaw('count(*) as total')
             ->where('CONV_ESTADO_ID', '!=', $borradorId)
+            // Una PUBLICADA solo cuenta como "Vigente" aquí si cae dentro de su
+            // ventana de fechas (05C hardening, pedido explícitamente por el
+            // usuario) — mismo criterio que `PublicoController::convocatorias`
+            // aplica al listado real de VIGENTES. Antes este conteo incluía
+            // también PUBLICADA que todavía no inician o ya vencieron sin que
+            // el scheduler las transicionara, dando un total de tarjeta mayor
+            // al que realmente aparecía al filtrar por "Vigentes".
+            ->when($publicadaId, fn ($q) => $q->where(function ($sub) use ($publicadaId, $ahora) {
+                $sub->where('CONV_ESTADO_ID', '!=', $publicadaId)
+                    ->orWhere(function ($sub2) use ($publicadaId, $ahora) {
+                        $sub2->where('CONV_ESTADO_ID', $publicadaId)
+                            ->where('CONV_FECHA_INICIO', '<=', $ahora)
+                            ->where('CONV_FECHA_FIN', '>=', $ahora);
+                    });
+            }))
             ->when($entidadId, fn ($q) => $q->where('CONV_ENTIDAD_ID', $entidadId))
             ->with(['estado' => fn ($sub) => $sub->select(['ESTA_ID', 'ESTA_CODIGO', 'ESTA_NOMBRE'])])
             ->groupBy('CONV_ESTADO_ID')

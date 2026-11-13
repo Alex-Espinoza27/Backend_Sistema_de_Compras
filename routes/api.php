@@ -54,6 +54,7 @@ Route::prefix('v1')->middleware('throttle:api')->group(function () {
     });
 
     Route::prefix('publico')->middleware('throttle:publico')->group(function () {
+        Route::get('/configuracion/tema', [PublicoController::class, 'tema']);
         Route::get('/entidades', [PublicoController::class, 'entidades']);
         Route::post('/entidades/solicitud', [PublicoController::class, 'solicitudEntidad']);
         Route::get('/rubros', [PublicoController::class, 'rubros']);
@@ -78,7 +79,8 @@ Route::prefix('v1')->middleware('throttle:api')->group(function () {
         Route::get('/{id}', [RequerimientoController::class, 'show'])->whereNumber('id')->middleware('permission:requerimientos.ver');
         Route::post('/', [RequerimientoController::class, 'store'])->middleware('permission:requerimientos.crear');
         Route::put('/{id}', [RequerimientoController::class, 'update'])->whereNumber('id')->middleware('permission:requerimientos.editar');
-        Route::delete('/{id}', [RequerimientoController::class, 'destroy'])->whereNumber('id')->middleware('permission:requerimientos.eliminar');
+        Route::post('/{id}/desactivar', [RequerimientoController::class, 'desactivar'])->whereNumber('id')->middleware('permission:requerimientos.eliminar');
+        Route::post('/{id}/activar', [RequerimientoController::class, 'activar'])->whereNumber('id')->middleware('permission:requerimientos.eliminar');
         Route::delete('/{id}/tdr/{archivoId}', [RequerimientoController::class, 'eliminarTdr'])->whereNumber(['id', 'archivoId'])->middleware('permission:requerimientos.editar');
     });
 
@@ -90,12 +92,14 @@ Route::prefix('v1')->middleware('throttle:api')->group(function () {
 
     Route::prefix('convocatorias')->middleware('auth:sanctum')->group(function () {
         Route::get('/', [ConvocatoriaController::class, 'index'])->middleware('permission:convocatorias.ver');
+        Route::get('/plantilla-dj-defecto', [ConvocatoriaController::class, 'plantillaDjDefecto'])->middleware('permission:convocatorias.ver');
         Route::get('/{id}', [ConvocatoriaController::class, 'show'])->whereNumber('id')->middleware('permission:convocatorias.ver');
         Route::post('/', [ConvocatoriaController::class, 'store'])->middleware('permission:convocatorias.crear');
         Route::put('/{id}', [ConvocatoriaController::class, 'update'])->whereNumber('id')->middleware('permission:convocatorias.editar');
         Route::delete('/{id}/plantilla-dj/{archivoId}', [ConvocatoriaController::class, 'eliminarPlantillaDj'])->whereNumber(['id', 'archivoId'])->middleware('permission:convocatorias.editar');
         Route::post('/{id}/publicar', [ConvocatoriaController::class, 'publicar'])->whereNumber('id')->middleware('permission:convocatorias.publicar');
         Route::post('/{id}/cancelar', [ConvocatoriaController::class, 'cancelar'])->whereNumber('id')->middleware('permission:convocatorias.cancelar');
+        Route::post('/{id}/ampliar-fecha-fin', [ConvocatoriaController::class, 'ampliarFechaFin'])->whereNumber('id')->middleware('permission:convocatorias.ampliar');
         Route::get('/{id}/postulacion', [OfertaController::class, 'postulacion'])->whereNumber('id')->middleware(['role:PROVEEDOR', 'permission:ofertas.crear']);
         Route::get('/{id}/ofertas', [EvaluacionController::class, 'ofertas'])->whereNumber('id')->middleware('permission:evaluacion.ver');
         Route::get('/{id}/cuadro-comparativo', [EvaluacionController::class, 'cuadroComparativo'])->whereNumber('id')->middleware('permission:evaluacion.ver');
@@ -167,7 +171,9 @@ Route::prefix('v1')->middleware('throttle:api')->group(function () {
         Route::post('/usuarios-plataforma', [GestionUsuariosController::class, 'store'])->middleware('permission:gestion_usuarios.gestionar');
         Route::get('/usuarios-plataforma/{id}', [GestionUsuariosController::class, 'show'])->whereNumber('id')->middleware('permission:gestion_usuarios.ver');
         Route::put('/usuarios-plataforma/{id}', [GestionUsuariosController::class, 'update'])->whereNumber('id')->middleware('permission:gestion_usuarios.gestionar');
-        Route::delete('/usuarios-plataforma/{id}', [GestionUsuariosController::class, 'destroy'])->whereNumber('id')->middleware('permission:gestion_usuarios.gestionar');
+        Route::post('/usuarios-plataforma/{id}/desactivar', [GestionUsuariosController::class, 'desactivar'])->whereNumber('id')->middleware('permission:gestion_usuarios.gestionar');
+        Route::post('/usuarios-plataforma/{id}/activar', [GestionUsuariosController::class, 'activar'])->whereNumber('id')->middleware('permission:gestion_usuarios.gestionar');
+        Route::post('/usuarios-plataforma/{id}/restablecer-password', [GestionUsuariosController::class, 'restablecerPassword'])->whereNumber('id')->middleware('permission:gestion_usuarios.gestionar');
 
         // Acepta también reportes.ver: AUDITOR/ENTIDAD no tienen gestion_proveedores.ver
         // pero sí necesitan este listado como combo del filtro proveedor_id en Reportes (J2).
@@ -191,6 +197,8 @@ Route::prefix('v1')->middleware('throttle:api')->group(function () {
         Route::get('/uit', [AdminConfiguracionController::class, 'uitIndex'])->middleware('permission:administracion.configuracion');
         Route::post('/uit', [AdminConfiguracionController::class, 'uitStore'])->middleware('permission:administracion.configuracion');
         Route::put('/uit/{id}', [AdminConfiguracionController::class, 'uitUpdate'])->whereNumber('id')->middleware('permission:administracion.configuracion');
+        Route::post('/configuracion/plantilla-dj-defecto', [AdminConfiguracionController::class, 'plantillaDjDefectoStore'])->middleware('permission:administracion.configuracion');
+        Route::delete('/configuracion/plantilla-dj-defecto', [AdminConfiguracionController::class, 'plantillaDjDefectoDestroy'])->middleware('permission:administracion.configuracion');
 
         Route::middleware('permission:administracion.catalogos')->group(function () {
             Route::get('/rubros', [AdminCatalogoController::class, 'rubrosIndex']);
@@ -208,6 +216,10 @@ Route::prefix('v1')->middleware('throttle:api')->group(function () {
             Route::get('/estados', [AdminCatalogoController::class, 'estadosIndex']);
             Route::post('/estados', [AdminCatalogoController::class, 'estadosStore']);
             Route::put('/estados/{id}', [AdminCatalogoController::class, 'estadosUpdate'])->whereNumber('id');
+
+            Route::get('/tipos-documento', [AdminCatalogoController::class, 'tiposDocumentoIndex']);
+            Route::post('/tipos-documento', [AdminCatalogoController::class, 'tiposDocumentoStore']);
+            Route::put('/tipos-documento/{id}', [AdminCatalogoController::class, 'tiposDocumentoUpdate'])->whereNumber('id');
         });
     });
 });

@@ -44,6 +44,12 @@ class ProduccionSeeder extends Seeder
             ['CONF_CLAVE' => 'CORREO_REMITENTE', 'CONF_VALOR' => 'no-reply@munilaperla.gob.pe', 'CONF_TIPO' => 'TEXTO', 'CONF_DESCRIPCION' => 'Correo remitente de las notificaciones institucionales.'],
             ['CONF_CLAVE' => 'CORREO_REMITENTE_NOMBRE', 'CONF_VALOR' => 'Compras La Perla', 'CONF_TIPO' => 'TEXTO', 'CONF_DESCRIPCION' => 'Nombre remitente que ven los destinatarios de las notificaciones.'],
             ['CONF_CLAVE' => 'PLANTILLA_DJ_DEFECTO', 'CONF_VALOR' => '', 'CONF_TIPO' => 'TEXTO', 'CONF_DESCRIPCION' => 'Referencia a la plantilla de declaración jurada por defecto.'],
+            // Color de marca (05C hardening, pedido explícitamente por el
+            // usuario): hex aplicado en caliente (sin recompilar) al
+            // encabezado y a los botones/chips "primary" de toda la
+            // plataforma (pública y autenticada) vía `App.vue` + `AppBar.vue`.
+            // Vacío = se mantiene el azul/navy estático de vuetify.ts.
+            ['CONF_CLAVE' => 'COLOR_PRIMARIO', 'CONF_VALOR' => '', 'CONF_TIPO' => 'COLOR', 'CONF_DESCRIPCION' => 'Color de marca (hex, ej. #0090D8) aplicado al encabezado y a los botones primarios de toda la plataforma. Vacío = usar el color por defecto del sistema.'],
             // Credenciales SMTP (05C hardening, pedido explícitamente por el
             // usuario): si SMTP_HOST queda vacío, sigue rigiendo lo que haya
             // en .env (ej. Mailpit en desarrollo) — ver AppServiceProvider.
@@ -73,6 +79,10 @@ class ProduccionSeeder extends Seeder
             ['TIDO_CODIGO' => 'RUC', 'TIDO_NOMBRE' => 'Registro Único de Contribuyentes', 'TIDO_LONGITUD' => 11],
             ['TIDO_CODIGO' => 'DNI', 'TIDO_NOMBRE' => 'Documento Nacional de Identidad', 'TIDO_LONGITUD' => 8],
             ['TIDO_CODIGO' => 'CE', 'TIDO_NOMBRE' => 'Carné de Extranjería', 'TIDO_LONGITUD' => 9],
+            // Tipo de identidad para usuarios de plataforma (05C hardening,
+            // pedido explícitamente por el usuario): "PS" se interpreta como
+            // Pasaporte; renombrar TIDO_CODIGO aquí si se quiso decir otra cosa.
+            ['TIDO_CODIGO' => 'PASAPORTE', 'TIDO_NOMBRE' => 'Pasaporte', 'TIDO_LONGITUD' => 12],
         ];
 
         foreach ($filas as $fila) {
@@ -205,7 +215,7 @@ class ProduccionSeeder extends Seeder
             'proveedores.ver_propio', 'proveedores.editar_propio', 'proveedores.suspender_propio',
             'requerimientos.ver', 'requerimientos.crear', 'requerimientos.editar', 'requerimientos.eliminar',
             'areas.ver', 'areas.gestionar',
-            'convocatorias.ver', 'convocatorias.crear', 'convocatorias.editar', 'convocatorias.publicar', 'convocatorias.cancelar',
+            'convocatorias.ver', 'convocatorias.crear', 'convocatorias.editar', 'convocatorias.publicar', 'convocatorias.cancelar', 'convocatorias.ampliar',
             'presentacion_ofertas.ver',
             'ofertas.ver', 'ofertas.crear', 'ofertas.retirar',
             'entidades.ver', 'entidades.aprobar', 'entidades.gestionar',
@@ -238,7 +248,7 @@ class ProduccionSeeder extends Seeder
         $entidad->syncPermissions([
             'requerimientos.ver', 'requerimientos.crear', 'requerimientos.editar', 'requerimientos.eliminar',
             'areas.ver', 'areas.gestionar',
-            'convocatorias.ver', 'convocatorias.crear', 'convocatorias.editar', 'convocatorias.publicar', 'convocatorias.cancelar',
+            'convocatorias.ver', 'convocatorias.crear', 'convocatorias.editar', 'convocatorias.publicar', 'convocatorias.cancelar', 'convocatorias.ampliar',
             'presentacion_ofertas.ver',
             'evaluacion.ver', 'evaluacion.evaluar',
             'adjudicacion.ver', 'adjudicacion.adjudicar', 'adjudicacion.declarar_desierta',

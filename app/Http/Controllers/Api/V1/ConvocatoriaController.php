@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\Api\V1;
 
 use App\Http\Controllers\Controller;
+use App\Http\Requests\Convocatoria\AmpliarFechaFinConvocatoriaRequest;
 use App\Http\Requests\Convocatoria\CancelarConvocatoriaRequest;
 use App\Http\Requests\Convocatoria\ConvocatoriaIndexRequest;
 use App\Http\Requests\Convocatoria\ConvocatoriaStoreRequest;
@@ -106,7 +107,7 @@ class ConvocatoriaController extends Controller
         $conv = Convocatoria::query()
             ->select([
                 'CONV_ID', 'CONV_REQUERIMIENTO_ID', 'CONV_ENTIDAD_ID', 'CONV_NUMERO', 'CONV_NOMBRE_SERVICIO',
-                'CONV_FECHA_INICIO', 'CONV_FECHA_FIN', 'CONV_ESTADO_ID', 'CONV_MOTIVO_CIERRE',
+                'CONV_FECHA_INICIO', 'CONV_FECHA_FIN', 'CONV_FECHA_FIN_ANTERIOR', 'CONV_ESTADO_ID', 'CONV_MOTIVO_CIERRE',
                 'CONV_FECHA_PUBLICACION', 'CONV_FECHA_APERTURA', 'CONV_FECHA_RESULTADO',
             ])
             ->withCount('ofertas as total_ofertas')
@@ -134,6 +135,10 @@ class ConvocatoriaController extends Controller
             'nombre_servicio' => $conv->CONV_NOMBRE_SERVICIO,
             'fecha_inicio' => $conv->CONV_FECHA_INICIO,
             'fecha_fin' => $conv->CONV_FECHA_FIN,
+            // Solo para control interno de la entidad (05C hardening, pedido
+            // explícitamente por el usuario) — nunca se expone en el portal
+            // público (`PublicoController` no la selecciona).
+            'fecha_fin_anterior' => $conv->CONV_FECHA_FIN_ANTERIOR,
             'estado' => ['codigo' => $conv->estado->ESTA_CODIGO, 'nombre' => $conv->estado->ESTA_NOMBRE, 'color' => $conv->estado->ESTA_COLOR],
             'motivo_cierre' => $conv->CONV_MOTIVO_CIERRE,
             'fecha_publicacion' => $conv->CONV_FECHA_PUBLICACION,
@@ -216,5 +221,32 @@ class ConvocatoriaController extends Controller
         $this->convocatoriaService->cancelar($convocatoria, $request->input('motivo'));
 
         return ApiResponse::success(null, 'Convocatoria cancelada.');
+    }
+
+    public function ampliarFechaFin(AmpliarFechaFinConvocatoriaRequest $request, int $id): JsonResponse
+    {
+        $convocatoria = Convocatoria::select(['CONV_ID', 'CONV_ESTADO_ID', 'CONV_FECHA_FIN'])->findOrFail($id);
+
+        $convocatoria = $this->convocatoriaService->ampliarFechaFin($convocatoria, $request->input('fecha_fin'));
+
+        return ApiResponse::success([
+            'fecha_fin' => $convocatoria->CONV_FECHA_FIN,
+            'fecha_fin_anterior' => $convocatoria->CONV_FECHA_FIN_ANTERIOR,
+        ], 'Plazo de postulación ampliado.');
+    }
+
+    /** 05C hardening (pedido explícitamente por el usuario): antes de este
+     * endpoint, quien crea/edita una convocatoria no tenía forma de saber si
+     * existe una plantilla DJ por defecto hasta que `publicar()` fallaba con
+     * 409 — ya con todo lo demás guardado. Mismo criterio (`ARCH_ID` válido)
+     * que usa `publicar()` para no publicar y el proveedor para descargar. */
+    public function plantillaDjDefecto(): JsonResponse
+    {
+        $plantilla = $this->convocatoriaService->plantillaDjDefectoArchivo();
+
+        return ApiResponse::success([
+            'existe' => $plantilla !== null,
+            'archivo' => $plantilla ? ['archivo_id' => $plantilla->ARCH_ID, 'nombre' => $plantilla->ARCH_NOMBRE_ORIGINAL] : null,
+        ]);
     }
 }

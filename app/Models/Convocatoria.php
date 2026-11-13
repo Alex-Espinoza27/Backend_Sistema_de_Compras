@@ -32,6 +32,7 @@ class Convocatoria extends Model
         'CONV_NOMBRE_SERVICIO',
         'CONV_FECHA_INICIO',
         'CONV_FECHA_FIN',
+        'CONV_FECHA_FIN_ANTERIOR',
         'CONV_ESTADO_ID',
         'CONV_MOTIVO_CIERRE',
         'CONV_OFERTA_ADJUDICADA_ID',
@@ -45,6 +46,7 @@ class Convocatoria extends Model
         return [
             'CONV_FECHA_INICIO' => 'datetime',
             'CONV_FECHA_FIN' => 'datetime',
+            'CONV_FECHA_FIN_ANTERIOR' => 'datetime',
             'CONV_FECHA_PUBLICACION' => 'datetime',
             'CONV_FECHA_APERTURA' => 'datetime',
             'CONV_FECHA_RESULTADO' => 'datetime',

@@ -25,4 +25,20 @@ class ConfiguracionUpdateRequest extends FormRequest
             'configuraciones.*.valor' => ['present', 'nullable', 'string'],
         ];
     }
+
+    /** COLOR_PRIMARIO (05C hardening, pedido explícitamente por el usuario):
+     * se aplica en caliente al tema de toda la plataforma (header + botones
+     * primarios) — un valor que no sea un hex válido rompería el color en
+     * cualquier pantalla, así que se valida aquí y no solo en el frontend. */
+    public function withValidator(\Illuminate\Validation\Validator $validator): void
+    {
+        $validator->after(function (\Illuminate\Validation\Validator $validator) {
+            foreach ($this->input('configuraciones', []) as $i => $item) {
+                $valor = $item['valor'] ?? '';
+                if (($item['clave'] ?? null) === 'COLOR_PRIMARIO' && $valor !== '' && ! preg_match('/^#[0-9A-Fa-f]{6}$/', $valor)) {
+                    $validator->errors()->add("configuraciones.{$i}.valor", 'El color principal debe ser un hexadecimal válido, ej. #0090D8.');
+                }
+            }
+        });
+    }
 }

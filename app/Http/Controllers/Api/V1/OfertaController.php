@@ -6,7 +6,6 @@ use App\Http\Controllers\Controller;
 use App\Http\Requests\Oferta\OfertaIndexRequest;
 use App\Http\Requests\Oferta\OfertaStoreRequest;
 use App\Models\Archivo;
-use App\Models\Configuracion;
 use App\Models\Convocatoria;
 use App\Models\Estado;
 use App\Models\Oferta;
@@ -14,6 +13,7 @@ use App\Models\Requerimiento;
 use App\Models\RequerimientoItem;
 use App\Models\TipoComprobante;
 use App\Services\ConstanciaService;
+use App\Services\ConvocatoriaService;
 use App\Services\OfertaService;
 use App\Support\ApiResponse;
 use Illuminate\Http\JsonResponse;
@@ -27,6 +27,7 @@ class OfertaController extends Controller
     public function __construct(
         private OfertaService $ofertaService,
         private ConstanciaService $constanciaService,
+        private ConvocatoriaService $convocatoriaService,
     ) {}
 
     public function postulacion(Request $request, int $id): JsonResponse
@@ -283,12 +284,7 @@ class OfertaController extends Controller
             ->where('ARCH_REFERENCIA_ID', $convocatoria->CONV_ID)
             ->first();
 
-        if (! $plantilla) {
-            $defecto = Configuracion::where('CONF_CLAVE', 'PLANTILLA_DJ_DEFECTO')->value('CONF_VALOR');
-            $plantilla = ($defecto && ctype_digit($defecto))
-                ? Archivo::select(['ARCH_ID'])->find((int) $defecto)
-                : null;
-        }
+        $plantilla ??= $this->convocatoriaService->plantillaDjDefectoArchivo();
 
         return $plantilla ? ['archivo_id' => $plantilla->ARCH_ID, 'descarga_url' => "/api/v1/archivos/{$plantilla->ARCH_ID}/descargar"] : null;
     }

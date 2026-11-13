@@ -90,8 +90,12 @@ class AuthController extends Controller
         return ApiResponse::success(null, 'Contraseña actualizada.');
     }
 
-    public function recuperarPassword(RecuperarPasswordRequest $request): JsonResponse
+    public function recuperarPassword(RecuperarPasswordRequest $request, CaptchaService $captcha): JsonResponse
     {
+        if (! $captcha->verificar($request->input('captcha'))) {
+            return ApiResponse::error('El captcha no es válido.', null, 422);
+        }
+
         Password::sendResetLink($request->only('email'));
 
         return ApiResponse::success(null, 'Si el correo existe, se envió un enlace de recuperación.');
@@ -186,6 +190,10 @@ class AuthController extends Controller
 
     private function motivoSuspension(User $user): ?string
     {
+        if (! $user->activo) {
+            return 'Tu cuenta está desactivada. Contacta al administrador.';
+        }
+
         if ($user->hasRole('PROVEEDOR') && $user->proveedor && $user->proveedor->estado->ESTA_CODIGO === 'SUSPENDIDO') {
             return 'Tu cuenta de proveedor está suspendida.';
         }

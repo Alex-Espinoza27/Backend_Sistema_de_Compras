@@ -25,11 +25,15 @@ class User extends Authenticatable
     protected $fillable = [
         'name',
         'email',
+        'activo',
         'dni',
+        'tipo_documento_id',
         'nombres',
         'apellido_paterno',
         'apellido_materno',
         'sexo',
+        'celular',
+        'fecha_nacimiento',
         'password',
         'entidad_id',
     ];
@@ -54,12 +58,19 @@ class User extends Authenticatable
         return [
             'email_verified_at' => 'datetime',
             'password' => 'hashed',
+            'fecha_nacimiento' => 'date',
+            'activo' => 'boolean',
         ];
     }
 
     public function entidad(): BelongsTo
     {
         return $this->belongsTo(Entidad::class, 'entidad_id');
+    }
+
+    public function tipoDocumento(): BelongsTo
+    {
+        return $this->belongsTo(TipoDocumento::class, 'tipo_documento_id');
     }
 
     public function proveedor(): HasOne
