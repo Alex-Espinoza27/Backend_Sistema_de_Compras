@@ -83,20 +83,31 @@ class PublicoController extends Controller
             'convocatorias_total' => $entidad->convocatorias_total,
         ])->values();
 
-        return ApiResponse::success(['items' => $items])
-            ->header('Cache-Control', 'public, max-age=60');
+        return ApiResponse::success(['items' => $items]);
     }
 
-    /** Color de marca (05C hardening, pedido explícitamente por el usuario):
-     * público porque `App.vue` lo aplica al cargar, antes de cualquier login
-     * — así el header y los botones primarios de las pantallas públicas
-     * (portal, login, registro) también reflejan el color configurado. */
+    /** Color de marca y entidad principal (05C hardening, pedido
+     * explícitamente por el usuario): público porque `App.vue` y
+     * `PortadaView.vue` lo aplican antes de cualquier login — así el header,
+     * los botones primarios y la entidad que se muestra directo en "/"
+     * reflejan lo configurado, aunque haya más de una entidad aprobada. */
     public function tema(): JsonResponse
     {
-        $valor = Configuracion::where('CONF_CLAVE', 'COLOR_PRIMARIO')->value('CONF_VALOR');
+        $color = Configuracion::where('CONF_CLAVE', 'COLOR_PRIMARIO')->value('CONF_VALOR');
+
+        // Se guarda el RUC (no el ENTI_ID) porque el ID es autoincremental y
+        // puede variar entre entornos/reseeds; aquí se resuelve al ID real
+        // para que el frontend no tenga que conocer el RUC.
+        $rucPrincipal = Configuracion::where('CONF_CLAVE', 'ENTIDAD_PRINCIPAL_RUC')->value('CONF_VALOR');
+        $entidadPrincipalId = $rucPrincipal
+            ? Entidad::where('ENTI_NUMERO_DOCUMENTO', $rucPrincipal)
+                ->whereHas('estado', fn ($q) => $q->where('ESTA_CODIGO', 'APROBADA'))
+                ->value('ENTI_ID')
+            : null;
 
         return ApiResponse::success([
-            'color_primario' => ($valor && preg_match('/^#[0-9A-Fa-f]{6}$/', $valor)) ? $valor : null,
+            'color_primario' => ($color && preg_match('/^#[0-9A-Fa-f]{6}$/', $color)) ? $color : null,
+            'entidad_principal_id' => $entidadPrincipalId,
         ])->header('Cache-Control', 'public, max-age=60');
     }
 
@@ -299,8 +310,7 @@ class PublicoController extends Controller
         // "private": el accion ('POSTULAR' vs 'YA_POSTULADO') ahora puede
         // variar según el proveedor autenticado que pida el listado, así que
         // ya no es seguro cachearlo como respuesta pública/compartida.
-        return ApiResponse::paginado($paginador)
-            ->header('Cache-Control', 'private, max-age=30');
+        return ApiResponse::paginado($paginador);
     }
 
     public function convocatoria(Request $request, int $id): JsonResponse

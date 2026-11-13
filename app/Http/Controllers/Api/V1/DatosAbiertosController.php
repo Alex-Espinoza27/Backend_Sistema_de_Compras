@@ -45,7 +45,6 @@ class DatosAbiertosController extends Controller
     {
         $entidadId = $request->integer('entidad_id') ?: null;
         $borradorId = Estado::where('ESTA_CONTEXTO', 'CONVOCATORIA')->where('ESTA_CODIGO', 'BORRADOR')->value('ESTA_ID');
-        $adjudicadaId = Estado::where('ESTA_CONTEXTO', 'CONVOCATORIA')->where('ESTA_CODIGO', 'ADJUDICADA')->value('ESTA_ID');
         $publicadaId = Estado::where('ESTA_CONTEXTO', 'CONVOCATORIA')->where('ESTA_CODIGO', 'PUBLICADA')->value('ESTA_ID');
         $ahora = now();
 
@@ -79,22 +78,6 @@ class DatosAbiertosController extends Controller
             ])
             ->values();
 
-        $adjudicadasPorMes = Convocatoria::query()
-            ->join('OFERTA', 'OFERTA.OFER_ID', '=', 'CONVOCATORIA.CONV_OFERTA_ADJUDICADA_ID')
-            ->where('CONVOCATORIA.CONV_ESTADO_ID', $adjudicadaId)
-            ->when($entidadId, fn ($q) => $q->where('CONVOCATORIA.CONV_ENTIDAD_ID', $entidadId))
-            ->selectRaw('to_char("CONVOCATORIA"."CONV_FECHA_RESULTADO", \'YYYY-MM\') as mes')
-            ->selectRaw('count(*) as total')
-            ->selectRaw('coalesce(sum("OFERTA"."OFER_TOTAL_GENERAL"), 0) as monto_adjudicado')
-            ->groupByRaw('to_char("CONVOCATORIA"."CONV_FECHA_RESULTADO", \'YYYY-MM\')')
-            ->orderBy('mes')
-            ->get()
-            ->map(fn ($fila) => [
-                'mes' => $fila->mes,
-                'total' => (int) $fila->total,
-                'monto_adjudicado' => (float) $fila->monto_adjudicado,
-            ]);
-
         $proveedoresParticipantes = Oferta::query()
             ->when($entidadId, fn ($q) => $q->whereHas('convocatoria', fn ($sub) => $sub->where('CONV_ENTIDAD_ID', $entidadId)))
             ->distinct('OFER_PROVEEDOR_ID')
@@ -102,7 +85,6 @@ class DatosAbiertosController extends Controller
 
         return ApiResponse::success([
             'convocatorias_por_estado' => $porEstado,
-            'adjudicadas_por_mes' => $adjudicadasPorMes,
             'proveedores_participantes' => $proveedoresParticipantes,
         ])->header('Cache-Control', 'public, max-age=300');
     }

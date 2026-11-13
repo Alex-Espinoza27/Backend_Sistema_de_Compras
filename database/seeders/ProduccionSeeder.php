@@ -3,6 +3,7 @@
 namespace Database\Seeders;
 
 use App\Models\Configuracion;
+use App\Models\Entidad;
 use App\Models\Estado;
 use App\Models\Modulo;
 use App\Models\Rubro;
@@ -30,6 +31,7 @@ class ProduccionSeeder extends Seeder
         $this->seedUnidadMedida();
         $this->seedRubro();
         $this->seedEstado();
+        $this->seedEntidad();
         $this->seedModulo();
         $this->seedRolesYPermisos();
         $this->seedAdmin();
@@ -50,6 +52,17 @@ class ProduccionSeeder extends Seeder
             // plataforma (pública y autenticada) vía `App.vue` + `AppBar.vue`.
             // Vacío = se mantiene el azul/navy estático de vuetify.ts.
             ['CONF_CLAVE' => 'COLOR_PRIMARIO', 'CONF_VALOR' => '', 'CONF_TIPO' => 'COLOR', 'CONF_DESCRIPCION' => 'Color de marca (hex, ej. #0090D8) aplicado al encabezado y a los botones primarios de toda la plataforma. Vacío = usar el color por defecto del sistema.'],
+            // Entidad principal del portal público (05C hardening, pedido
+            // explícitamente por el usuario): si hay más de una entidad
+            // APROBADA, `/` (PortadaView.vue) deja de mostrar directo el
+            // diseño de convocatorias y cae al buscador genérico de
+            // entidades — para evitarlo con La Perla, se identifica la
+            // entidad "de casa" por su RUC (dato estable, no por nombre) y
+            // `PublicoController::tema()` resuelve el ID real para el
+            // frontend. Se guarda el RUC, no el ENTI_ID, porque el ID es un
+            // autoincremental que puede variar entre entornos/reseeds; el RUC
+            // de la municipalidad no cambia.
+            ['CONF_CLAVE' => 'ENTIDAD_PRINCIPAL_RUC', 'CONF_VALOR' => '20100000001', 'CONF_TIPO' => 'TEXTO', 'CONF_DESCRIPCION' => 'RUC de la entidad que el portal público ("/") muestra directamente, aunque haya más de una entidad aprobada. Vacío = mostrar el buscador de entidades cuando haya más de una.'],
             // Credenciales SMTP (05C hardening, pedido explícitamente por el
             // usuario): si SMTP_HOST queda vacío, sigue rigiendo lo que haya
             // en .env (ej. Mailpit en desarrollo) — ver AppServiceProvider.
@@ -165,6 +178,34 @@ class ProduccionSeeder extends Seeder
                 $fila,
             );
         }
+    }
+
+    /**
+     * La plataforma hoy aloja una sola entidad (05C hardening, pedido
+     * explícitamente por el usuario): sin esto, un servidor nuevo arrancaba
+     * sin ninguna entidad aprobada, y el portal público nunca podía resolver
+     * "la única entidad" (`PortadaView.vue` cae al listado genérico en vez
+     * de mostrar el diseño de entidad única). Mismos datos que ya usa
+     * `DemoSeeder` para la entidad "aprobada", para no tener dos fuentes de
+     * verdad distintas del mismo registro institucional.
+     */
+    private function seedEntidad(): void
+    {
+        Entidad::updateOrCreate(
+            ['ENTI_NUMERO_DOCUMENTO' => '20100000001'],
+            [
+                'ENTI_TIPO_DOCUMENTO_ID' => TipoDocumento::where('TIDO_CODIGO', 'RUC')->value('TIDO_ID'),
+                'ENTI_RAZON_SOCIAL' => 'Municipalidad Distrital de La Perla',
+                'ENTI_SIGLA' => 'MDLP',
+                'ENTI_CORREO' => 'contacto@munilaperla.gob.pe',
+                'ENTI_TELEFONO' => '014567890',
+                'ENTI_DIRECCION' => 'Av. Guardia Chalaca 100, La Perla, Callao',
+                'ENTI_PERSONA_CONTACTO' => 'Jefe de Abastecimiento',
+                'ENTI_ESTADO_ID' => Estado::where('ESTA_CONTEXTO', 'ENTIDAD')->where('ESTA_CODIGO', 'APROBADA')->value('ESTA_ID'),
+                'ENTI_FECHA_SOLICITUD' => now()->subDays(60),
+                'ENTI_FECHA_RESOLUCION' => now()->subDays(59),
+            ],
+        );
     }
 
     private function seedModulo(): void
