@@ -30,9 +30,14 @@ class SunatService
 
                 if ($respuesta->successful()) {
                     $datos = [
-                        'razon_social' => (string) ($respuesta->json('razon_social') ?? $respuesta->json('nombre') ?? ''),
-                        'tipo_persona' => $this->inferirTipoPersona($respuesta->json('tipo'), $numeroDocumento),
-                        'estado_sunat' => (string) ($respuesta->json('estado') ?? 'ACTIVO'),
+                        'razon_social' => (string) (
+                            $respuesta->json('data.razon_social')
+                            ?? $respuesta->json('data.nombre')
+                            ?? $respuesta->json('data.nombre_o_razon_social')
+                            ?? ''
+                        ),
+                        'tipo_persona' => $this->inferirTipoPersona($respuesta->json('data.tipo'), $numeroDocumento),
+                        'estado_sunat' => (string) ($respuesta->json('data.estado') ?? 'ACTIVO'),
                         'origen' => 'SUNAT',
                     ];
 
