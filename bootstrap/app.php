@@ -20,8 +20,13 @@ return Application::configure(basePath: dirname(__DIR__))
         health: '/up',
     )
     ->withMiddleware(function (Middleware $middleware): void {
-        $middleware->statefulApi();
-
+        // Auth por Bearer token (Sanctum personal access tokens), no cookies de
+        // sesión: statefulApi() activaba el modo SPA-cookie (requiere
+        // SESSION_DOMAIN/SESSION_PATH/SANCTUM_STATEFUL_DOMAINS exactos y
+        // /sanctum/csrf-cookie) — fuente de los bugs de CORS/CSRF/sesión al
+        // desplegar backend y frontend en orígenes separados. Sin esto, la API
+        // es stateless: el guard `auth:sanctum` de las rutas simplemente
+        // valida el Bearer token, sin sesión ni CSRF de por medio.
         $middleware->alias([
             'role' => \Spatie\Permission\Middleware\RoleMiddleware::class,
             'permission' => \Spatie\Permission\Middleware\PermissionMiddleware::class,

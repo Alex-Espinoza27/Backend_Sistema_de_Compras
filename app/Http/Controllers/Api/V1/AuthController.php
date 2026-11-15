@@ -21,7 +21,6 @@ use App\Services\SunatService;
 use App\Support\ApiResponse;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
-use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Password;
@@ -33,26 +32,22 @@ class AuthController extends Controller
 
     public function login(LoginRequest $request): JsonResponse
     {
-        if (! Auth::attempt($request->only('email', 'password'))) {
+        /** @var User|null $user */
+        $user = User::where('email', $request->string('email'))->first();
+
+        if (! $user || ! Hash::check($request->string('password'), $user->password)) {
             return ApiResponse::error('Las credenciales no son válidas.', null, 401);
         }
 
-        $request->session()->regenerate();
-
-        /** @var User $user */
-        $user = Auth::user();
-
         if ($motivo = $this->motivoSuspension($user)) {
-            Auth::guard('web')->logout();
-            $request->session()->invalidate();
-            $request->session()->regenerateToken();
-
             return ApiResponse::error($motivo, null, 423);
         }
 
+        $token = $user->createToken('authToken')->plainTextToken;
+
         $this->auditoria->registrar('AUTENTICACION', 'LOGIN', 'users', $user->id, userId: $user->id);
 
-        return ApiResponse::success($this->construirMe($user));
+        return ApiResponse::success(['token' => $token, ...$this->construirMe($user)]);
     }
 
     public function me(Request $request): JsonResponse
@@ -64,9 +59,7 @@ class AuthController extends Controller
     {
         $this->auditoria->registrar('AUTENTICACION', 'LOGOUT', 'users', $request->user()->id, userId: $request->user()->id);
 
-        Auth::guard('web')->logout();
-        $request->session()->invalidate();
-        $request->session()->regenerateToken();
+        $request->user()->currentAccessToken()->delete();
 
         return ApiResponse::success();
     }
@@ -182,10 +175,13 @@ class AuthController extends Controller
             return $user;
         });
 
-        Auth::login($usuario);
-        $request->session()->regenerate();
+        $token = $usuario->createToken('authToken')->plainTextToken;
 
-        return ApiResponse::success($this->construirMe($usuario->fresh()), 'Cuenta registrada correctamente.', 201);
+        return ApiResponse::success(
+            ['token' => $token, ...$this->construirMe($usuario->fresh())],
+            'Cuenta registrada correctamente.',
+            201,
+        );
     }
 
     private function motivoSuspension(User $user): ?string

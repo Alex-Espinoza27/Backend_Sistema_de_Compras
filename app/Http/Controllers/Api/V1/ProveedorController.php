@@ -13,7 +13,6 @@ use App\Services\EstadoService;
 use App\Support\ApiResponse;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
-use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
 
 class ProveedorController extends Controller
@@ -78,9 +77,7 @@ class ProveedorController extends Controller
             tabla: 'PROVEEDOR',
         );
 
-        Auth::guard('web')->logout();
-        $request->session()->invalidate();
-        $request->session()->regenerateToken();
+        $request->user()->currentAccessToken()->delete();
 
         return ApiResponse::success(null, 'Tu cuenta ha sido suspendida.');
     }
