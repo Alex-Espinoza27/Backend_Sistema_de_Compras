@@ -22,6 +22,13 @@ return Application::configure(basePath: dirname(__DIR__))
     ->withMiddleware(function (Middleware $middleware): void {
         $middleware->statefulApi();
         $middleware->appendToGroup('api', \App\Http\Middleware\CaducarSesionAbsoluta::class);
+        // Sin esta prioridad Laravel ordena `auth:sanctum` ANTES de este
+        // middleware: el usuario ya queda autenticado y, aunque se invalide la
+        // sesión, esa petición sigue pasando como autenticada.
+        $middleware->prependToPriorityList(
+            before: \Illuminate\Contracts\Auth\Middleware\AuthenticatesRequests::class,
+            prepend: \App\Http\Middleware\CaducarSesionAbsoluta::class,
+        );
 
         $middleware->alias([
             'role' => \Spatie\Permission\Middleware\RoleMiddleware::class,
