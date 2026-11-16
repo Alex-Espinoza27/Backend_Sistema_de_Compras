@@ -7,6 +7,8 @@ use Illuminate\Validation\Rule;
 
 class RequerimientoStoreRequest extends FormRequest
 {
+    use ReglasRequerimiento;
+
     public function authorize(): bool
     {
         return true;
@@ -33,8 +35,8 @@ class RequerimientoStoreRequest extends FormRequest
                 Rule::requiredIf(fn () => ! $this->user()->hasRole('ENTIDAD')),
                 'nullable', 'integer', Rule::exists('ENTIDAD', 'ENTI_ID'),
             ],
-            'objeto' => ['required', 'string', 'max:250'],
-            'descripcion' => ['required', 'string'],
+            'objeto' => ['required', 'string', 'max:'.self::MAX_OBJETO],
+            'descripcion' => ['required', 'string', 'max:'.self::MAX_DESCRIPCION],
             'tipo' => ['required', Rule::in(['BIEN', 'SERVICIO'])],
             // Un requerimiento puede tener más de un rubro (05C hardening).
             'rubro_ids' => ['nullable', 'array'],
@@ -48,12 +50,12 @@ class RequerimientoStoreRequest extends FormRequest
             ],
             'items' => ['required', 'array', 'min:1'],
             'items.*.numero' => ['required', 'integer', 'min:1', 'distinct'],
-            'items.*.descripcion' => ['required', 'string'],
+            'items.*.descripcion' => ['required', 'string', 'max:'.self::MAX_ITEM_DESCRIPCION],
             'items.*.unidad_medida_id' => ['required', 'integer', Rule::exists('UNIDAD_MEDIDA', 'UNME_ID')->where(fn ($q) => $q->where('UNME_ACTIVO', true))],
-            'items.*.cantidad' => ['required', 'numeric', 'min:1', 'max:10000000'],
+            'items.*.cantidad' => ['required', 'numeric', 'min:1', 'max:'.self::MAX_CANTIDAD],
             // Presentación/contenido opcional (05C hardening, ej. "500 ml"
             // cuando la unidad de medida por sí sola no basta).
-            'items.*.presentacion' => ['nullable', 'string', 'max:120'],
+            'items.*.presentacion' => ['nullable', 'string', 'max:'.self::MAX_PRESENTACION],
             'archivo_tdr' => ['nullable', 'file', 'mimes:pdf,doc,docx', 'max:'.$maxKb],
         ];
     }

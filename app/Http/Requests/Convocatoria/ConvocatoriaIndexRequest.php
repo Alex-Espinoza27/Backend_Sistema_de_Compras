@@ -29,7 +29,10 @@ class ConvocatoriaIndexRequest extends FormRequest
             'entidad_id' => ['nullable', 'integer', Rule::exists('ENTIDAD', 'ENTI_ID')],
             'desde' => ['nullable', 'date'],
             'hasta' => ['nullable', 'date'],
-            'ordenar_por' => ['nullable', Rule::in(['fecha_fin', 'fecha_inicio', 'numero', 'estado'])],
+            // Fecha de registro (cuándo se creó la convocatoria), `YYYY-MM-DD`.
+            'registro_desde' => ['nullable', 'date_format:Y-m-d'],
+            'registro_hasta' => ['nullable', 'date_format:Y-m-d', 'after_or_equal:registro_desde'],
+            'ordenar_por' => ['nullable', Rule::in(['fecha_fin', 'fecha_inicio', 'fecha_registro', 'numero', 'estado'])],
             'direccion' => ['nullable', Rule::in(['asc', 'desc'])],
             'pagina' => ['nullable', 'integer', 'min:1'],
             'por_pagina' => ['nullable', 'integer', 'min:1', 'max:100'],

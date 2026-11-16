@@ -46,6 +46,7 @@ class Convocatoria extends Model
         return [
             'CONV_FECHA_INICIO' => 'datetime',
             'CONV_FECHA_FIN' => 'datetime',
+            'CONV_CREADO_EN' => 'datetime',
             'CONV_FECHA_FIN_ANTERIOR' => 'datetime',
             'CONV_FECHA_PUBLICACION' => 'datetime',
             'CONV_FECHA_APERTURA' => 'datetime',

@@ -13,6 +13,7 @@ use App\Models\UnidadMedida;
 use App\Services\ArchivoService;
 use App\Services\RequerimientoService;
 use App\Support\ApiResponse;
+use App\Support\RangoFechas;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Symfony\Component\HttpKernel\Exception\HttpException;
@@ -56,12 +57,10 @@ class RequerimientoController extends Controller
             // Solo ADMINISTRADOR/AUDITOR pueden filtrar por entidad (05C
             // hardening): para ENTIDAD el scope real ya lo aplica `DeSuEntidad`.
             ->when($esAdminOAuditor && $request->filled('entidad_id'), fn ($q) => $q->where('REQU_ENTIDAD_ID', $request->integer('entidad_id')))
-            // `whereDate` compara solo la parte de fecha (ignora la hora):
-            // "hasta" así incluye el día completo, no solo la medianoche
-            // (05C hardening, pedido explícitamente por el usuario — nuevo
-            // filtro, con el valor por defecto "hoy" que arma el frontend).
-            ->when($request->filled('desde'), fn ($q) => $q->whereDate('REQU_CREADO_EN', '>=', $request->input('desde')))
-            ->when($request->filled('hasta'), fn ($q) => $q->whereDate('REQU_CREADO_EN', '<=', $request->input('hasta')))
+            // Fecha de REGISTRO por días completos en hora de Lima, sin
+            // importar la hora (ver RangoFechas): "del 15/11 al 16/11"
+            // incluye todo lo registrado el 16, no solo hasta las 00:00.
+            ->tap(fn ($q) => RangoFechas::aplicar($q, 'REQU_CREADO_EN', $request->input('desde'), $request->input('hasta')))
             ->with([
                 'rubros' => fn ($q) => $q->select(['RUBR_ID', 'RUBR_NOMBRE']),
                 'area' => fn ($q) => $q->select(['AREA_ID', 'AREA_NOMBRE']),

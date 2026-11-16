@@ -14,6 +14,7 @@ use App\Models\Estado;
 use App\Services\ArchivoService;
 use App\Services\ConvocatoriaService;
 use App\Support\ApiResponse;
+use App\Support\RangoFechas;
 use Illuminate\Http\JsonResponse;
 use Symfony\Component\HttpKernel\Exception\HttpException;
 
@@ -29,6 +30,7 @@ class ConvocatoriaController extends Controller
         $columnaOrden = [
             'fecha_fin' => 'CONV_FECHA_FIN',
             'fecha_inicio' => 'CONV_FECHA_INICIO',
+            'fecha_registro' => 'CONV_CREADO_EN',
             'numero' => 'CONV_NUMERO',
             'estado' => 'CONV_ESTADO_ID',
         ][$request->input('ordenar_por', 'fecha_fin')] ?? 'CONV_FECHA_FIN';
@@ -36,7 +38,7 @@ class ConvocatoriaController extends Controller
         $esAdminOAuditor = $request->user()->hasAnyRole(['ADMINISTRADOR', 'AUDITOR']);
 
         $query = Convocatoria::query()
-            ->select(['CONV_ID', 'CONV_NUMERO', 'CONV_NOMBRE_SERVICIO', 'CONV_FECHA_INICIO', 'CONV_FECHA_FIN', 'CONV_ESTADO_ID', 'CONV_MOTIVO_CIERRE', 'CONV_NUMERO_INDAGACION'])
+            ->select(['CONV_ID', 'CONV_NUMERO', 'CONV_NOMBRE_SERVICIO', 'CONV_FECHA_INICIO', 'CONV_FECHA_FIN', 'CONV_CREADO_EN', 'CONV_ESTADO_ID', 'CONV_MOTIVO_CIERRE', 'CONV_NUMERO_INDAGACION'])
             ->selectRaw('fn_convocatoria_urgencia("CONV_ID") as urgencia_dias')
             ->withCount('ofertas as total_ofertas')
             // Ofertas ya calificadas (05C hardening, pedido explícitamente
@@ -77,6 +79,11 @@ class ConvocatoriaController extends Controller
             // hoy; se nota recién ahora que el filtro por defecto es "hoy").
             ->when($request->filled('desde'), fn ($q) => $q->whereDate('CONV_FECHA_FIN', '>=', $request->input('desde')))
             ->when($request->filled('hasta'), fn ($q) => $q->whereDate('CONV_FECHA_FIN', '<=', $request->input('hasta')))
+            // Fecha de REGISTRO (cuándo se creó la convocatoria), por días
+            // completos en hora de Lima, sin importar la hora (el listado de
+            // Convocatorias lo usa; `desde`/`hasta` siguen siendo por cierre
+            // de plazo para Evaluación y Adjudicación).
+            ->tap(fn ($q) => RangoFechas::aplicar($q, 'CONV_CREADO_EN', $request->input('registro_desde'), $request->input('registro_hasta')))
             ->with(['estado' => fn ($q) => $q->select(['ESTA_ID', 'ESTA_CODIGO', 'ESTA_NOMBRE', 'ESTA_COLOR'])])
             ->orderBy($columnaOrden, $request->input('direccion', 'asc'));
 
@@ -91,6 +98,7 @@ class ConvocatoriaController extends Controller
             'nombre_servicio' => $c->CONV_NOMBRE_SERVICIO,
             'fecha_inicio' => $c->CONV_FECHA_INICIO,
             'fecha_fin' => $c->CONV_FECHA_FIN,
+            'fecha_registro' => $c->CONV_CREADO_EN,
             'estado' => ['codigo' => $c->estado->ESTA_CODIGO, 'nombre' => $c->estado->ESTA_NOMBRE, 'color' => $c->estado->ESTA_COLOR],
             'urgencia_dias' => (int) $c->urgencia_dias,
             'total_ofertas' => $c->total_ofertas,

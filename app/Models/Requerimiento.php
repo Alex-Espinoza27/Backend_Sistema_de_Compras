@@ -40,6 +40,7 @@ class Requerimiento extends Model
     {
         return [
             'REQU_ACTIVO' => 'boolean',
+            'REQU_CREADO_EN' => 'datetime',
         ];
     }
 
