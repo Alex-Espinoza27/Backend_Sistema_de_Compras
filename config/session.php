@@ -38,6 +38,19 @@ return [
 
     /*
     |--------------------------------------------------------------------------
+    | Session Absolute Lifetime
+    |--------------------------------------------------------------------------
+    |
+    | Minutos máximos desde el login, aunque haya actividad (a diferencia de
+    | `lifetime`, que es por inactividad). Pasado ese tiempo la sesión se
+    | cierra. 0 desactiva el tope. Ver CaducarSesionAbsoluta.
+    |
+    */
+
+    'absolute_lifetime' => (int) env('SESSION_ABSOLUTE_LIFETIME', 1440),
+
+    /*
+    |--------------------------------------------------------------------------
     | Session Encryption
     |--------------------------------------------------------------------------
     |

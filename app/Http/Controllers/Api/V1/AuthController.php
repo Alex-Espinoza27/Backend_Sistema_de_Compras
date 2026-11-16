@@ -38,6 +38,7 @@ class AuthController extends Controller
         }
 
         $request->session()->regenerate();
+        $request->session()->put('login_at', now()->timestamp);
 
         /** @var User $user */
         $user = Auth::user();
@@ -184,6 +185,7 @@ class AuthController extends Controller
 
         Auth::login($usuario);
         $request->session()->regenerate();
+        $request->session()->put('login_at', now()->timestamp);
 
         return ApiResponse::success($this->construirMe($usuario->fresh()), 'Cuenta registrada correctamente.', 201);
     }
@@ -271,6 +273,26 @@ class AuthController extends Controller
             'permisos' => $permisos,
             'menu' => $menu,
             'perfil' => $perfil,
+            'sesion' => [
+                'expira_en_segundos' => $this->segundosRestantesSesion(),
+            ],
         ];
+    }
+
+    /** Segundos hasta el tope absoluto de sesión (null si no aplica). Se
+     * entrega relativo, no como hora, para que el reloj del navegador no
+     * pueda desfasar el cálculo. */
+    private function segundosRestantesSesion(): ?int
+    {
+        $limite = (int) config('session.absolute_lifetime') * 60;
+        $request = request();
+
+        if ($limite <= 0 || ! $request->hasSession()) {
+            return null;
+        }
+
+        $inicio = (int) $request->session()->get('login_at', now()->timestamp);
+
+        return max(0, $inicio + $limite - now()->timestamp);
     }
 }
