@@ -7,6 +7,7 @@ use Database\Factories\UserFactory;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasOne;
+use App\Notifications\RestablecerPasswordNotification;
 use Illuminate\Foundation\Auth\User as Authenticatable;
 use Illuminate\Notifications\Notifiable;
 use Laravel\Sanctum\HasApiTokens;
@@ -61,6 +62,14 @@ class User extends Authenticatable
             'fecha_nacimiento' => 'date',
             'activo' => 'boolean',
         ];
+    }
+
+    /** Enlace de alta/restablecimiento iniciado por un administrador (broker
+     * `users`, 60 min). El de "Olvidé mi contraseña" usa el broker
+     * `recuperacion` y arma su propia notificación en AuthController. */
+    public function sendPasswordResetNotification($token): void
+    {
+        $this->notify(new RestablecerPasswordNotification($token, (int) config('auth.passwords.users.expire'), solicitudPropia: false));
     }
 
     public function entidad(): BelongsTo

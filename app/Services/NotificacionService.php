@@ -33,9 +33,31 @@ class NotificacionService
         ]);
     }
 
-    public function enviarCorreo(string $destinatario, string $asunto, string $cuerpo): void
-    {
-        Mail::to($destinatario)->queue(new NotificacionInstitucional($asunto, $cuerpo));
+    public function enviarCorreo(
+        string $destinatario,
+        string $asunto,
+        string $cuerpo,
+        ?string $accionTexto = null,
+        ?string $accionUrl = null,
+    ): void {
+        Mail::to($destinatario)->queue(new NotificacionInstitucional($asunto, $cuerpo, $accionTexto, $accionUrl));
+    }
+
+    /** Igual que `enviarCorreo`, pero un fallo al encolar se registra y no
+     * interrumpe la operación de negocio que ya se completó (registro,
+     * postulación, ampliación de plazo). */
+    public function enviarCorreoSinFallar(
+        string $destinatario,
+        string $asunto,
+        string $cuerpo,
+        ?string $accionTexto = null,
+        ?string $accionUrl = null,
+    ): void {
+        try {
+            $this->enviarCorreo($destinatario, $asunto, $cuerpo, $accionTexto, $accionUrl);
+        } catch (\Throwable $e) {
+            report($e);
+        }
     }
 
     public function notificarAdministradores(string $asunto, string $cuerpo): void

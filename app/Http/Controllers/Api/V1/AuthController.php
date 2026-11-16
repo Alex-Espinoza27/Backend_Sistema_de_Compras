@@ -14,9 +14,11 @@ use App\Models\Modulo;
 use App\Models\Proveedor;
 use App\Models\TipoDocumento;
 use App\Models\User;
+use App\Notifications\RestablecerPasswordNotification;
 use App\Services\AuditoriaService;
 use App\Services\Captcha\CaptchaInternoService;
 use App\Services\Captcha\CaptchaService;
+use App\Services\CorreoPlataformaService;
 use App\Services\SunatService;
 use App\Support\ApiResponse;
 use Illuminate\Http\JsonResponse;
@@ -25,11 +27,20 @@ use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Password;
+use Illuminate\Support\Carbon;
 use Illuminate\Validation\ValidationException;
 
 class AuthController extends Controller
 {
-    public function __construct(private AuditoriaService $auditoria) {}
+    /** Brokers cuyo enlace puede usarse en /restablecer-password, en este
+     * orden: `recuperacion` (10 min, "Olvidé mi contraseña") y `users`
+     * (60 min, alta/restablecimiento hecho por un administrador). */
+    private const BROKERS_RESTABLECER = ['recuperacion', 'users'];
+
+    public function __construct(
+        private AuditoriaService $auditoria,
+        private CorreoPlataformaService $correos,
+    ) {}
 
     public function login(LoginRequest $request): JsonResponse
     {
@@ -97,26 +108,78 @@ class AuthController extends Controller
             return ApiResponse::error('El captcha no es válido.', null, 422);
         }
 
-        Password::sendResetLink($request->only('email'));
+        $minutos = (int) config('auth.passwords.recuperacion.expire');
 
-        return ApiResponse::success(null, 'Si el correo existe, se envió un enlace de recuperación.');
+        Password::broker('recuperacion')->sendResetLink(
+            $request->only('email'),
+            fn (User $user, string $token) => $user->notify(new RestablecerPasswordNotification($token, $minutos)),
+        );
+
+        // Misma respuesta exista o no el correo (no revela qué cuentas hay).
+        return ApiResponse::success(
+            ['vigencia_minutos' => $minutos],
+            'Si el correo existe, se envió un enlace de recuperación.',
+        );
     }
 
     public function restablecerPassword(RestablecerPasswordRequest $request): JsonResponse
     {
-        $status = Password::reset(
-            $request->only('email', 'password', 'password_confirmation', 'token'),
-            function (User $user, string $password) {
+        $credenciales = $request->only('email', 'password', 'password_confirmation', 'token');
+        $status = Password::INVALID_TOKEN;
+
+        foreach (self::BROKERS_RESTABLECER as $broker) {
+            $status = Password::broker($broker)->reset($credenciales, function (User $user, string $password) {
                 $user->password = $password;
                 $user->save();
-            },
-        );
+
+                // Con la contraseña ya cambiada, cualquier otro enlace pendiente
+                // de esta cuenta (de cualquiera de los dos tipos) deja de servir.
+                foreach (self::BROKERS_RESTABLECER as $otro) {
+                    Password::broker($otro)->deleteToken($user);
+                }
+            });
+
+            if ($status === Password::PASSWORD_RESET) {
+                break;
+            }
+        }
 
         if ($status !== Password::PASSWORD_RESET) {
             return ApiResponse::error('El enlace de recuperación no es válido o expiró.', null, 422);
         }
 
         return ApiResponse::success(null, 'Contraseña restablecida.');
+    }
+
+    /** Lo consulta la pantalla de restablecer antes de mostrar el formulario:
+     * dice si el enlace sigue vigente y cuántos segundos le quedan, para la
+     * cuenta regresiva. Responde igual de genérico ante un enlace inexistente,
+     * vencido o ya usado. */
+    public function validarEnlaceRestablecer(Request $request): JsonResponse
+    {
+        $token = (string) $request->query('token');
+        $correo = (string) $request->query('email');
+        $usuario = ($token !== '' && $correo !== '') ? User::where('email', $correo)->first() : null;
+
+        if ($usuario) {
+            foreach (self::BROKERS_RESTABLECER as $broker) {
+                if (! Password::broker($broker)->tokenExists($usuario, $token)) {
+                    continue;
+                }
+
+                $creado = DB::table(config("auth.passwords.{$broker}.table"))
+                    ->where('email', $usuario->getEmailForPasswordReset())
+                    ->value('created_at');
+                $vence = Carbon::parse($creado)->addMinutes((int) config("auth.passwords.{$broker}.expire"));
+
+                return ApiResponse::success([
+                    'valido' => true,
+                    'expira_en_segundos' => max(0, (int) now()->diffInSeconds($vence, false)),
+                ]);
+            }
+        }
+
+        return ApiResponse::success(['valido' => false, 'expira_en_segundos' => null]);
     }
 
     public function captcha(CaptchaInternoService $captcha): JsonResponse
@@ -186,6 +249,13 @@ class AuthController extends Controller
         Auth::login($usuario);
         $request->session()->regenerate();
         $request->session()->put('login_at', now()->timestamp);
+
+        $this->correos->bienvenidaProveedor(
+            $request->string('correo')->toString(),
+            $request->string('razon_social')->toString(),
+            $request->string('tipo_documento')->toString(),
+            $request->string('numero_documento')->toString(),
+        );
 
         return ApiResponse::success($this->construirMe($usuario->fresh()), 'Cuenta registrada correctamente.', 201);
     }

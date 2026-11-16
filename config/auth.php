@@ -99,6 +99,17 @@ return [
             'expire' => 60,
             'throttle' => 60,
         ],
+
+        // "Olvidé mi contraseña" (pantalla pública): enlace de un solo uso que
+        // vence a los 10 minutos. Tabla propia para que NO se mezcle con los
+        // enlaces de alta de usuarios creados por un administrador (broker
+        // `users`, 60 min): un token de una tabla no sirve en la otra.
+        'recuperacion' => [
+            'provider' => 'users',
+            'table' => 'password_recovery_tokens',
+            'expire' => 10,
+            'throttle' => 60,
+        ],
     ],
 
     /*

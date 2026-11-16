@@ -7,6 +7,7 @@ use App\Models\Configuracion;
 use App\Models\Convocatoria;
 use App\Models\Estado;
 use App\Models\Oferta;
+use App\Models\Proveedor;
 use App\Models\Requerimiento;
 use App\Models\RequerimientoItem;
 use Illuminate\Http\UploadedFile;
@@ -26,6 +27,7 @@ class ConvocatoriaService
         private NumeracionService $numeracionService,
         private AuditoriaService $auditoria,
         private ArchivoService $archivoService,
+        private CorreoPlataformaService $correos,
     ) {}
 
     public function crear(array $datos, ?int $entidadId, ?UploadedFile $archivoPlantillaDj = null): Convocatoria
@@ -308,9 +310,9 @@ class ConvocatoriaService
             throw new HttpException(409, 'La nueva fecha de fin debe ser posterior a la fecha de fin actual.');
         }
 
-        return DB::transaction(function () use ($convocatoria, $nueva) {
-            $anterior = $convocatoria->CONV_FECHA_FIN;
+        $anterior = $convocatoria->CONV_FECHA_FIN->copy();
 
+        $actualizada = DB::transaction(function () use ($convocatoria, $nueva, $anterior) {
             $convocatoria->CONV_FECHA_FIN_ANTERIOR = $anterior;
             $convocatoria->CONV_FECHA_FIN = $nueva;
             $convocatoria->save();
@@ -326,6 +328,33 @@ class ConvocatoriaService
 
             return $convocatoria->fresh();
         });
+
+        $this->notificarAmpliacion($actualizada, $anterior);
+
+        return $actualizada;
+    }
+
+    /** Avisa por correo (en cola) a todos los proveedores que postularon a
+     * la convocatoria. Va después del commit y nunca hace fallar la ampliación. */
+    private function notificarAmpliacion(Convocatoria $convocatoria, Carbon $finAnterior): void
+    {
+        try {
+            $destinatarios = Proveedor::select(['PROV_ID', 'PROV_CORREO', 'PROV_RAZON_SOCIAL'])
+                ->whereIn('PROV_ID', Oferta::select('OFER_PROVEEDOR_ID')->where('OFER_CONVOCATORIA_ID', $convocatoria->CONV_ID))
+                ->whereNotNull('PROV_CORREO')
+                ->get()
+                ->map(fn (Proveedor $p) => ['correo' => $p->PROV_CORREO, 'razon_social' => $p->PROV_RAZON_SOCIAL]);
+
+            $this->correos->plazoAmpliado(
+                $destinatarios,
+                $convocatoria->CONV_NUMERO,
+                $convocatoria->CONV_NOMBRE_SERVICIO,
+                $finAnterior,
+                $convocatoria->CONV_FECHA_FIN,
+            );
+        } catch (\Throwable $e) {
+            report($e);
+        }
     }
 
     /**

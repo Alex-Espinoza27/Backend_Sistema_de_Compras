@@ -21,6 +21,7 @@ class OfertaService
         private ArchivoService $archivoService,
         private AuditoriaService $auditoria,
         private NumeracionService $numeracionService,
+        private CorreoPlataformaService $correos,
     ) {}
 
     public function validarConvocatoriaVigente(Convocatoria $convocatoria): void
@@ -69,7 +70,7 @@ class OfertaService
         $segunTdrEjecucion = filter_var($datos['plazo_ejecucion_segun_tdr'], FILTER_VALIDATE_BOOLEAN);
         $segunTdrPago = filter_var($datos['forma_pago_segun_tdr'], FILTER_VALIDATE_BOOLEAN);
 
-        return DB::transaction(function () use ($datos, $archivos, $proveedor, $convocatoria, $estadoEnviadaId, $segunTdrEjecucion, $segunTdrPago) {
+        $resultado = DB::transaction(function () use ($datos, $archivos, $proveedor, $convocatoria, $estadoEnviadaId, $segunTdrEjecucion, $segunTdrPago) {
             $oferta = Oferta::create([
                 'OFER_CONVOCATORIA_ID' => $convocatoria->CONV_ID,
                 'OFER_PROVEEDOR_ID' => $proveedor->PROV_ID,
@@ -115,6 +116,36 @@ class OfertaService
                 'constancia_url' => "/api/v1/ofertas/{$oferta->OFER_ID}/constancia.pdf",
             ];
         });
+
+        $this->notificarPostulacion($proveedor->PROV_ID, $convocatoria->CONV_ID, $resultado['constancia_codigo']);
+
+        return $resultado;
+    }
+
+    /** Correo de constancia al proveedor. Va después del commit y nunca hace
+     * fallar una postulación ya registrada. */
+    private function notificarPostulacion(int $proveedorId, int $convocatoriaId, string $constancia): void
+    {
+        try {
+            $proveedor = Proveedor::select(['PROV_ID', 'PROV_CORREO', 'PROV_RAZON_SOCIAL'])->find($proveedorId);
+            $convocatoria = Convocatoria::select(['CONV_ID', 'CONV_NUMERO', 'CONV_NOMBRE_SERVICIO', 'CONV_FECHA_INICIO', 'CONV_FECHA_FIN'])->find($convocatoriaId);
+
+            if (! $proveedor?->PROV_CORREO || ! $convocatoria) {
+                return;
+            }
+
+            $this->correos->postulacionRegistrada(
+                $proveedor->PROV_CORREO,
+                $proveedor->PROV_RAZON_SOCIAL,
+                $convocatoria->CONV_NUMERO,
+                $convocatoria->CONV_NOMBRE_SERVICIO,
+                $convocatoria->CONV_FECHA_INICIO,
+                $convocatoria->CONV_FECHA_FIN,
+                $constancia,
+            );
+        } catch (\Throwable $e) {
+            report($e);
+        }
     }
 
     public function retirar(Oferta $oferta): void

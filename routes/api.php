@@ -34,6 +34,7 @@ Route::prefix('v1')->middleware('throttle:api')->group(function () {
         Route::post('/login', [AuthController::class, 'login'])->middleware('throttle:auth');
         Route::post('/recuperar-password', [AuthController::class, 'recuperarPassword'])->middleware('throttle:auth');
         Route::post('/restablecer-password', [AuthController::class, 'restablecerPassword'])->middleware('throttle:auth');
+        Route::get('/restablecer-password/validar', [AuthController::class, 'validarEnlaceRestablecer'])->middleware('throttle:auth');
 
         Route::get('/captcha', [AuthController::class, 'captcha'])->middleware('throttle:auth');
         Route::post('/registro/consultar-ruc', [AuthController::class, 'consultarRuc'])->middleware('throttle:auth');

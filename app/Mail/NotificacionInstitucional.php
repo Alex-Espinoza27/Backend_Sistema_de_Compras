@@ -10,7 +10,8 @@ use Illuminate\Queue\SerializesModels;
 /**
  * Correo institucional genérico (02A §7.6): usado por NotificacionService
  * para avisos que no tienen destinatario en users (ej. resolución de una
- * solicitud de entidad, cuando aún no existe usuario).
+ * solicitud de entidad, cuando aún no existe usuario). Opcionalmente lleva un
+ * botón de acción (`accionTexto` + `accionUrl`).
  */
 class NotificacionInstitucional extends Mailable implements ShouldQueue
 {
@@ -19,6 +20,8 @@ class NotificacionInstitucional extends Mailable implements ShouldQueue
     public function __construct(
         public string $asuntoCorreo,
         public string $cuerpo,
+        public ?string $accionTexto = null,
+        public ?string $accionUrl = null,
     ) {}
 
     public function build(): self
