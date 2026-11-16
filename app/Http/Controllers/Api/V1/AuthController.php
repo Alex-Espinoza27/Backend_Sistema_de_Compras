@@ -117,7 +117,13 @@ class AuthController extends Controller
 
         // Misma respuesta exista o no el correo (no revela qué cuentas hay).
         return ApiResponse::success(
-            ['vigencia_minutos' => $minutos],
+            [
+                'vigencia_minutos' => $minutos,
+                // Mientras no pase este tiempo el broker no emite otro enlace
+                // para el mismo correo: el botón "Reintentar envío" del
+                // frontend se desbloquea recién entonces.
+                'reintento_en_segundos' => (int) config('auth.passwords.recuperacion.throttle'),
+            ],
             'Si el correo existe, se envió un enlace de recuperación.',
         );
     }

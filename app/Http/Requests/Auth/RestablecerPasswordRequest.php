@@ -17,7 +17,10 @@ class RestablecerPasswordRequest extends FormRequest
         return [
             'token' => ['required', 'string'],
             'email' => ['required', 'email'],
-            'password' => ['required', 'confirmed', 'max:72', Password::defaults()],
+            // Mínimo 8 caracteres, explícito (no depende de Password::defaults()).
+            // La validación corre antes de tocar el token: una contraseña
+            // corta no consume el enlace.
+            'password' => ['required', 'confirmed', 'max:72', Password::min(8)],
         ];
     }
 }

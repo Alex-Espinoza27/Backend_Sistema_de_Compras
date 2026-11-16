@@ -94,6 +94,54 @@ class RecuperarPasswordTest extends TestCase
         Notification::assertNothingSent();
     }
 
+    public function test_la_respuesta_indica_cuando_se_puede_reintentar_el_envio(): void
+    {
+        Notification::fake();
+
+        $this->postJson('/api/v1/auth/recuperar-password', ['email' => self::CORREO, 'captcha' => 'x'])
+            ->assertOk()
+            ->assertJsonPath('data.reintento_en_segundos', 60);
+    }
+
+    public function test_reintentar_antes_de_tiempo_no_emite_otro_enlace_y_despues_si(): void
+    {
+        $token = $this->pedirEnlace();
+
+        // Dentro de los 60 s el broker no genera otro enlace (el botón del
+        // frontend sigue bloqueado todo ese tiempo).
+        $this->postJson('/api/v1/auth/recuperar-password', ['email' => self::CORREO, 'captcha' => 'x'])->assertOk();
+        Notification::assertSentToTimes(User::find(1), RestablecerPasswordNotification::class, 1);
+        $this->validar($token)->assertJsonPath('data.valido', true);
+
+        // Pasado el tiempo sale un enlace nuevo y el anterior deja de servir.
+        $this->travel(61)->seconds();
+        $this->postJson('/api/v1/auth/recuperar-password', ['email' => self::CORREO, 'captcha' => 'x'])->assertOk();
+        Notification::assertSentToTimes(User::find(1), RestablecerPasswordNotification::class, 2);
+        $this->validar($token)->assertJsonPath('data.valido', false);
+    }
+
+    public function test_la_contrasena_nueva_exige_minimo_8_caracteres_y_no_consume_el_enlace(): void
+    {
+        $token = $this->pedirEnlace();
+
+        $corta = $this->postJson('/api/v1/auth/restablecer-password', [
+            'token' => $token, 'email' => self::CORREO,
+            'password' => 'Abc#123', 'password_confirmation' => 'Abc#123',
+        ]);
+        $corta->assertStatus(422);
+        $this->assertNotEmpty($corta->json('errores.password'));
+        $this->assertStringContainsString('8 caracteres', json_encode($corta->json('errores.password')));
+
+        // La validación falló antes de tocar el token: sigue sirviendo.
+        $this->validar($token)->assertJsonPath('data.valido', true);
+        $this->assertTrue(Hash::check('Original#123', User::find(1)->password));
+
+        $this->postJson('/api/v1/auth/restablecer-password', [
+            'token' => $token, 'email' => self::CORREO,
+            'password' => 'Abcd#123', 'password_confirmation' => 'Abcd#123',
+        ])->assertOk();
+    }
+
     public function test_el_enlace_vale_para_validar_y_expira_a_los_10_minutos(): void
     {
         $token = $this->pedirEnlace();
