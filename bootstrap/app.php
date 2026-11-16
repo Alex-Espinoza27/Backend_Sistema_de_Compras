@@ -21,6 +21,11 @@ return Application::configure(basePath: dirname(__DIR__))
     )
     ->withMiddleware(function (Middleware $middleware): void {
         $middleware->statefulApi();
+        // `/sanctum/csrf-cookie` va por el grupo `web`: ahí también se cambia el
+        // middleware para que emita la cookie propia y no `XSRF-TOKEN`.
+        $middleware->web(replace: [
+            \Illuminate\Foundation\Http\Middleware\ValidateCsrfToken::class => \App\Http\Middleware\ValidarCsrfCompras::class,
+        ]);
         $middleware->appendToGroup('api', \App\Http\Middleware\CaducarSesionAbsoluta::class);
         // Sin esta prioridad Laravel ordena `auth:sanctum` ANTES de este
         // middleware: el usuario ya queda autenticado y, aunque se invalide la

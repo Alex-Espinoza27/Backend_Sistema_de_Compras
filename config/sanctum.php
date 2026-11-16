@@ -1,7 +1,7 @@
 <?php
 
 use Illuminate\Cookie\Middleware\EncryptCookies;
-use Illuminate\Foundation\Http\Middleware\ValidateCsrfToken;
+use App\Http\Middleware\ValidarCsrfCompras;
 use Laravel\Sanctum\Http\Middleware\AuthenticateSession;
 use Laravel\Sanctum\Sanctum;
 
@@ -81,7 +81,8 @@ return [
     'middleware' => [
         'authenticate_session' => AuthenticateSession::class,
         'encrypt_cookies' => EncryptCookies::class,
-        'validate_csrf_token' => ValidateCsrfToken::class,
+        // Cookie propia (XSRF-TOKEN-COMPRAS): ver ValidarCsrfCompras.
+        'validate_csrf_token' => ValidarCsrfCompras::class,
     ],
 
 ];
