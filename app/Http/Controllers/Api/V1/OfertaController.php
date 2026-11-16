@@ -79,6 +79,7 @@ class OfertaController extends Controller
             'items' => $items,
             'tipos_comprobante' => $tiposComprobante,
             'opciones_validez' => [15, 30],
+            'limites' => OfertaStoreRequest::limites(),
         ]);
     }
 
