@@ -209,7 +209,7 @@ class OfertaController extends Controller
                 'nombre_servicio' => $oferta->convocatoria->CONV_NOMBRE_SERVICIO,
             ],
             'estado' => ['codigo' => $oferta->estado->ESTA_CODIGO, 'nombre' => $oferta->estado->ESTA_NOMBRE, 'color' => $oferta->estado->ESTA_COLOR],
-            'tipo_comprobante' => ['codigo' => $oferta->tipoComprobante->TICO_CODIGO, 'nombre' => $oferta->tipoComprobante->TICO_NOMBRE],
+            'tipo_comprobante' => ['codigo' => $oferta->tipoComprobante?->TICO_CODIGO, 'nombre' => $oferta->tipoComprobante?->TICO_NOMBRE],
             'total_general' => $oferta->OFER_TOTAL_GENERAL,
             'validez_dias' => $oferta->OFER_VALIDEZ_DIAS,
             'plazo_ejecucion_segun_tdr' => $oferta->OFER_PLAZO_EJECUCION_SEGUN_TDR,
