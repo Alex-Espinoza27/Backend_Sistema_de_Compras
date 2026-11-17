@@ -50,7 +50,8 @@ class EvaluacionController extends Controller
             'constancia_codigo' => $o->OFER_CONSTANCIA_CODIGO,
             'proveedor' => ['proveedor_id' => $o->proveedor->PROV_ID, 'numero_documento' => $o->proveedor->PROV_NUMERO_DOCUMENTO, 'razon_social' => $o->proveedor->PROV_RAZON_SOCIAL],
             'total_general' => $o->OFER_TOTAL_GENERAL,
-            'tipo_comprobante' => $o->tipoComprobante->TICO_CODIGO,
+            // El comprobante es opcional al postular: puede no haber ninguno.
+            'tipo_comprobante' => $o->tipoComprobante?->TICO_CODIGO,
             'eval_tecnica' => $o->OFER_EVAL_TECNICA,
             'eval_logistica' => $o->OFER_EVAL_LOGISTICA,
             'estado' => ['codigo' => $o->estado->ESTA_CODIGO, 'color' => $o->estado->ESTA_COLOR],

@@ -218,7 +218,8 @@ class DashboardController extends Controller
      */
     private function paraProveedor(User $user, ?Carbon $desde, ?Carbon $hasta): array
     {
-        $proveedorId = $user->proveedor->PROV_ID;
+        // Un usuario con rol PROVEEDOR sin ficha de proveedor ve el tablero en cero, no un 500.
+        $proveedorId = $user->proveedor?->PROV_ID ?? 0;
         $estados = Estado::where('ESTA_CONTEXTO', 'OFERTA')->pluck('ESTA_ID', 'ESTA_CODIGO');
 
         $misOfertasEnviadas = DB::table('OFERTA')
