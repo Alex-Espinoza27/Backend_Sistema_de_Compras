@@ -27,13 +27,17 @@ class PresentacionOfertasController extends Controller
     {
         $query = Oferta::query()
             ->select(['OFER_ID', 'OFER_CONVOCATORIA_ID', 'OFER_PROVEEDOR_ID', 'OFER_CONSTANCIA_CODIGO', 'OFER_TOTAL_GENERAL', 'OFER_ESTADO_ID', 'OFER_FECHA_ENVIO'])
-            ->whereHas('convocatoria', function ($q) use ($request) {
-                if ($request->filled('buscar')) {
-                    $buscar = $request->string('buscar');
-                    $q->where(function ($sub) use ($buscar) {
-                        $sub->where('CONV_NOMBRE_SERVICIO', 'ilike', "%{$buscar}%")->orWhere('CONV_NUMERO', 'ilike', "%{$buscar}%");
-                    });
-                }
+            // Requerido para que el scope por entidad de `Convocatoria`
+            // (global scope `DeSuEntidad`) se aplique siempre, con o sin `buscar`.
+            ->whereHas('convocatoria')
+            // Por nombre/código de convocatoria o por razón social/N.° de
+            // documento del proveedor (pedido explícitamente por el usuario).
+            ->when($request->filled('buscar'), function ($q) use ($request) {
+                $buscar = $request->string('buscar');
+                $q->where(function ($sub) use ($buscar) {
+                    $sub->whereHas('convocatoria', fn ($c) => $c->where('CONV_NOMBRE_SERVICIO', 'ilike', "%{$buscar}%")->orWhere('CONV_NUMERO', 'ilike', "%{$buscar}%"))
+                        ->orWhereHas('proveedor', fn ($p) => $p->where('PROV_RAZON_SOCIAL', 'ilike', "%{$buscar}%")->orWhere('PROV_NUMERO_DOCUMENTO', 'ilike', "%{$buscar}%"));
+                });
             })
             ->when($request->filled('convocatoria_id'), fn ($q) => $q->where('OFER_CONVOCATORIA_ID', $request->integer('convocatoria_id')))
             ->when($request->filled('estado'), function ($q) use ($request) {
@@ -47,7 +51,8 @@ class PresentacionOfertasController extends Controller
             ->when($request->filled('hasta'), fn ($q) => $q->whereDate('OFER_FECHA_ENVIO', '<=', $request->input('hasta')))
             ->with([
                 'convocatoria' => fn ($q) => $q->select(['CONV_ID', 'CONV_NUMERO', 'CONV_NOMBRE_SERVICIO']),
-                'proveedor' => fn ($q) => $q->select(['PROV_ID', 'PROV_NUMERO_DOCUMENTO', 'PROV_RAZON_SOCIAL']),
+                'proveedor' => fn ($q) => $q->select(['PROV_ID', 'PROV_NUMERO_DOCUMENTO', 'PROV_RAZON_SOCIAL', 'PROV_TIPO_DOCUMENTO_ID'])
+                    ->with('tipoDocumento:TIDO_ID,TIDO_CODIGO'),
                 'estado' => fn ($q) => $q->select(['ESTA_ID', 'ESTA_CODIGO', 'ESTA_NOMBRE', 'ESTA_COLOR']),
             ])
             ->orderBy(
@@ -64,7 +69,12 @@ class PresentacionOfertasController extends Controller
             'oferta_id' => $o->OFER_ID,
             'constancia_codigo' => $o->OFER_CONSTANCIA_CODIGO,
             'convocatoria' => ['convocatoria_id' => $o->convocatoria->CONV_ID, 'numero' => $o->convocatoria->CONV_NUMERO, 'nombre_servicio' => $o->convocatoria->CONV_NOMBRE_SERVICIO],
-            'proveedor' => ['proveedor_id' => $o->proveedor->PROV_ID, 'numero_documento' => $o->proveedor->PROV_NUMERO_DOCUMENTO, 'razon_social' => $o->proveedor->PROV_RAZON_SOCIAL],
+            'proveedor' => [
+                'proveedor_id' => $o->proveedor->PROV_ID,
+                'numero_documento' => $o->proveedor->PROV_NUMERO_DOCUMENTO,
+                'razon_social' => $o->proveedor->PROV_RAZON_SOCIAL,
+                'tipo_documento' => $o->proveedor->tipoDocumento?->TIDO_CODIGO ?? 'Doc.',
+            ],
             'total_general' => $o->OFER_TOTAL_GENERAL,
             'estado' => ['codigo' => $o->estado->ESTA_CODIGO, 'nombre' => $o->estado->ESTA_NOMBRE, 'color' => $o->estado->ESTA_COLOR],
             'fecha_envio' => $o->OFER_FECHA_ENVIO,
