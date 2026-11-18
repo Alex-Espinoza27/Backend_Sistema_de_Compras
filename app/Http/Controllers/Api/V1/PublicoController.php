@@ -179,8 +179,11 @@ class PublicoController extends Controller
             ->when($request->filled('buscar'), function ($sub) use ($request) {
                 $buscar = $request->string('buscar');
                 $sub->where(function ($sub2) use ($buscar) {
+                    // También por N.° de indagación: es el número que figura
+                    // en el PDF público de resultados.
                     $sub2->where('CONV_NOMBRE_SERVICIO', 'ilike', "%{$buscar}%")
-                        ->orWhere('CONV_NUMERO', 'ilike', "%{$buscar}%");
+                        ->orWhere('CONV_NUMERO', 'ilike', "%{$buscar}%")
+                        ->orWhere('CONV_NUMERO_INDAGACION', 'ilike', "%{$buscar}%");
                 });
             })
             ->when($request->filled('tipo'), function ($sub) use ($request) {
