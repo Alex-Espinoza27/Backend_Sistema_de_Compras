@@ -451,6 +451,8 @@ class DemoSeeder extends Seeder
     private function crearArchivoDemo(string $contexto, int $referenciaId, string $nombreOriginal, string $contenido): Archivo
     {
         $ruta = 'demo/' . strtolower($contexto) . '/' . $referenciaId . '/' . $nombreOriginal;
+        // Un .pdf con solo texto no abre en el visor: se guarda un PDF válido.
+        $contenido = \App\Support\PdfMinimo::asegurar($nombreOriginal, $contenido);
         Storage::disk('local')->put($ruta, $contenido);
 
         return Archivo::create([

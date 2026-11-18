@@ -19,6 +19,8 @@ use App\Models\UnidadMedida;
 use App\Models\User;
 use App\Services\AuditoriaService;
 use App\Services\NumeracionService;
+use App\Services\ResultadoService;
+use App\Support\PdfMinimo;
 use Faker\Factory as FakerFactory;
 use Faker\Generator as FakerGenerator;
 use Illuminate\Console\Command;
@@ -55,7 +57,8 @@ class GenerarDatosEstres extends Command
     protected $signature = 'desa:generar-estres
         {--proveedores=60 : Cantidad de proveedores a generar}
         {--requerimientos=300 : Cantidad de requerimientos/convocatorias a generar (1 convocatoria por requerimiento)}
-        {--limpiar : Antes de generar, borra los datos de estrés generados en una corrida previa}';
+        {--limpiar : Antes de generar, borra los datos de estrés generados en una corrida previa}
+        {--reparar-archivos : No genera nada: convierte en PDF válido los archivos de estrés de corridas anteriores que solo tenían texto}';
 
     protected $description = 'SOLO DESARROLLO: genera muchos registros (proveedores, requerimientos, convocatorias, ofertas, adjudicaciones) con fechas variadas, para pruebas de estrés de listados, ampliación de plazo y adjudicación.';
 
@@ -90,6 +93,10 @@ class GenerarDatosEstres extends Command
         $this->numeracion = $numeracion;
         $this->auditoria = $auditoria;
         $this->faker = FakerFactory::create('es_ES');
+
+        if ($this->option('reparar-archivos')) {
+            return $this->repararArchivos();
+        }
 
         $this->components->task('Cargando catálogos', function () {
             $this->cargarCatalogos();
@@ -523,7 +530,7 @@ class GenerarDatosEstres extends Command
             $convocatoria->save();
 
             $this->crearArchivoEstres('RESULTADO_PDF', $convocatoria->CONV_ID, "Resultados-{$convocatoria->CONV_NUMERO}.pdf",
-                'PDF de resultados de ejemplo (estrés) con el cuadro comparativo de postores.');
+                $this->pdfResultadosReal($convocatoria));
         }
 
         // DESIERTA con ofertas evaluadas sí tiene documento de indagación
@@ -535,7 +542,7 @@ class GenerarDatosEstres extends Command
             $convocatoria->save();
 
             $this->crearArchivoEstres('RESULTADO_PDF', $convocatoria->CONV_ID, "Resultados-{$convocatoria->CONV_NUMERO}.pdf",
-                'PDF de resultados de ejemplo (estrés): convocatoria declarada desierta.');
+                $this->pdfResultadosReal($convocatoria));
         }
     }
 
@@ -598,6 +605,9 @@ class GenerarDatosEstres extends Command
     private function crearArchivoEstres(string $contexto, int $referenciaId, string $nombreOriginal, string $contenido): Archivo
     {
         $ruta = 'estres/' . strtolower($contexto) . '/' . $referenciaId . '/' . $nombreOriginal;
+        // Antes se guardaba solo el texto con extensión .pdf y el visor de PDF
+        // fallaba al abrirlo; ahora es siempre un PDF válido.
+        $contenido = PdfMinimo::asegurar($nombreOriginal, $contenido);
         Storage::disk('local')->put($ruta, $contenido);
 
         return Archivo::create([
@@ -611,6 +621,52 @@ class GenerarDatosEstres extends Command
             'ARCH_TAMANO_BYTES' => strlen($contenido),
             'ARCH_HASH_SHA256' => hash('sha256', $contenido),
         ]);
+    }
+
+    /** El mismo documento "Indagación de Mercado" que genera una adjudicación real. */
+    private function pdfResultadosReal(Convocatoria $convocatoria): string
+    {
+        return app(ResultadoService::class)->generarPdf($convocatoria)->output();
+    }
+
+    /**
+     * Corridas anteriores (de este comando y de DemoSeeder) guardaban archivos
+     * .pdf que solo tenían una frase de texto. Los resultados se regeneran con
+     * el documento real; el resto (TDR, DJ, sustentos) pasa a un PDF mínimo
+     * con la misma frase.
+     */
+    private function repararArchivos(): int
+    {
+        $reparados = 0;
+
+        Archivo::select(['ARCH_ID', 'ARCH_CONTEXTO', 'ARCH_REFERENCIA_ID', 'ARCH_RUTA', 'ARCH_NOMBRE_ORIGINAL'])
+            ->where(fn ($q) => $q->where('ARCH_RUTA', 'like', 'estres/%')->orWhere('ARCH_RUTA', 'like', 'demo/%'))
+            ->where('ARCH_NOMBRE_ORIGINAL', 'like', '%.pdf')
+            ->orderBy('ARCH_ID')
+            ->chunkById(200, function ($archivos) use (&$reparados) {
+                foreach ($archivos as $archivo) {
+                    $disco = Storage::disk('local');
+                    $actual = $disco->exists($archivo->ARCH_RUTA) ? $disco->get($archivo->ARCH_RUTA) : '';
+                    if (str_starts_with($actual, '%PDF')) {
+                        continue;
+                    }
+
+                    $nuevo = $archivo->ARCH_CONTEXTO === 'RESULTADO_PDF'
+                        ? $this->pdfResultadosReal(Convocatoria::findOrFail($archivo->ARCH_REFERENCIA_ID))
+                        : PdfMinimo::desdeTexto($actual !== '' ? $actual : $archivo->ARCH_NOMBRE_ORIGINAL);
+
+                    $disco->put($archivo->ARCH_RUTA, $nuevo);
+                    Archivo::whereKey($archivo->ARCH_ID)->update([
+                        'ARCH_TAMANO_BYTES' => strlen($nuevo),
+                        'ARCH_HASH_SHA256' => hash('sha256', $nuevo),
+                    ]);
+                    $reparados++;
+                }
+            }, 'ARCH_ID');
+
+        $this->components->info("Archivos reparados: {$reparados}");
+
+        return self::SUCCESS;
     }
 
     private function imprimirResumen(): void
