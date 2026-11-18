@@ -29,7 +29,7 @@ class RolStoreRequest extends FormRequest
                 Rule::notIn(AdministracionService::ROLES_RESERVADOS),
                 'unique:roles,name',
             ],
-            'permisos' => ['array'],
+            'permisos' => ['required', 'array', 'min:1'],
             'permisos.*' => ['string', Rule::exists('permissions', 'name')],
         ];
     }
@@ -38,6 +38,8 @@ class RolStoreRequest extends FormRequest
     {
         return [
             'nombre.regex' => 'El nombre del rol solo puede tener letras mayúsculas y guion bajo (ej. SUPERVISOR).',
+            'permisos.required' => 'Selecciona al menos un permiso.',
+            'permisos.min' => 'Selecciona al menos un permiso.',
         ];
     }
 }

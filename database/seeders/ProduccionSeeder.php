@@ -226,7 +226,9 @@ class ProduccionSeeder extends Seeder
             ['MODU_CODIGO' => 'OFERTAS', 'MODU_NOMBRE' => 'Ver Convocatorias', 'MODU_ICONO' => 'mdi-file-document', 'MODU_ORDEN' => 6],
             ['MODU_CODIGO' => 'EVALUACION', 'MODU_NOMBRE' => 'Evaluación', 'MODU_ICONO' => 'mdi-clipboard-check', 'MODU_ORDEN' => 7],
             ['MODU_CODIGO' => 'ADJUDICACION', 'MODU_NOMBRE' => 'Adjudicación', 'MODU_ICONO' => 'mdi-gavel', 'MODU_ORDEN' => 8],
-            ['MODU_CODIGO' => 'ENTIDADES', 'MODU_NOMBRE' => 'Entidades', 'MODU_ICONO' => 'mdi-domain', 'MODU_ORDEN' => 9],
+            // Oculto (MODU_VISIBLE = false): no sale en el menú ni en Roles y
+            // Permisos; los usuarios se asignan a su entidad desde Usuarios.
+            ['MODU_CODIGO' => 'ENTIDADES', 'MODU_NOMBRE' => 'Entidades', 'MODU_ICONO' => 'mdi-domain', 'MODU_ORDEN' => 9, 'MODU_VISIBLE' => false],
             // GESTION_PROVEEDORES (05C hardening) es distinto del código
             // legado `PROVEEDORES` (permisos proveedores.*_propio del propio
             // proveedor, siempre excluido del menú — ver AuthController::
@@ -246,7 +248,7 @@ class ProduccionSeeder extends Seeder
         ];
 
         foreach ($filas as $fila) {
-            Modulo::updateOrCreate(['MODU_CODIGO' => $fila['MODU_CODIGO']], $fila);
+            Modulo::updateOrCreate(['MODU_CODIGO' => $fila['MODU_CODIGO']], $fila + ['MODU_VISIBLE' => true]);
         }
     }
 

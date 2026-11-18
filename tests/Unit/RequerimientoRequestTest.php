@@ -45,6 +45,11 @@ class RequerimientoRequestTest extends TestCase
             {
                 return true;
             }
+
+            public function limitadoAEntidad(): bool
+            {
+                return true;
+            }
         });
         $reglas = Arr::only($solicitud->rules(), self::CAMPOS);
 

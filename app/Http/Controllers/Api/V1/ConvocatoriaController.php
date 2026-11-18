@@ -35,7 +35,9 @@ class ConvocatoriaController extends Controller
             'estado' => 'CONV_ESTADO_ID',
         ][$request->input('ordenar_por', 'fecha_fin')] ?? 'CONV_FECHA_FIN';
 
-        $esAdminOAuditor = $request->user()->hasAnyRole(['ADMINISTRADOR', 'AUDITOR']);
+        // Ve todas las entidades quien no está limitado a la suya (ADMINISTRADOR,
+        // AUDITOR o un rol personalizado sin entidad asignada).
+        $esAdminOAuditor = ! $request->user()->limitadoAEntidad();
 
         $query = Convocatoria::query()
             ->select(['CONV_ID', 'CONV_NUMERO', 'CONV_NOMBRE_SERVICIO', 'CONV_FECHA_INICIO', 'CONV_FECHA_FIN', 'CONV_CREADO_EN', 'CONV_ESTADO_ID', 'CONV_MOTIVO_CIERRE', 'CONV_NUMERO_INDAGACION'])
@@ -176,9 +178,12 @@ class ConvocatoriaController extends Controller
     public function store(ConvocatoriaStoreRequest $request): JsonResponse
     {
         $user = $request->user();
-        $entidadId = $user->entidad_id;
+        // Limitado a su entidad: la convocatoria es de su entidad (y el
+        // requerimiento debe serlo). Sin límite (ADMINISTRADOR o rol
+        // personalizado sin entidad): toma la entidad del requerimiento.
+        $entidadId = $user->limitadoAEntidad() ? $user->entidad_id : null;
 
-        if (! $entidadId && ! $user->hasRole('ADMINISTRADOR')) {
+        if ($user->limitadoAEntidad() && ! $entidadId) {
             throw new HttpException(403, 'Debe pertenecer a una entidad para crear convocatorias.');
         }
 

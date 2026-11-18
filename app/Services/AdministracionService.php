@@ -8,6 +8,7 @@ use App\Models\Estado;
 use App\Models\Proveedor;
 use App\Models\TipoDocumento;
 use App\Models\Uit;
+use App\Support\CatalogoPermisos;
 use App\Models\User;
 use Illuminate\Support\Facades\Artisan;
 use Illuminate\Support\Facades\Crypt;
@@ -33,8 +34,16 @@ class AdministracionService
 
     /** Alta de usuario de plataforma (05C hardening — módulo "Usuarios"
      * unificado: internos + Entidad, antes solo ADMINISTRADOR/AUDITOR).
-     * `entidad_id` solo aplica si `rol === 'ENTIDAD'` (ya validado en el
-     * Request). Mismo patrón que `EntidadService::crearFilaUsuario`. */
+     * `entidad_id`: obligatorio con rol ENTIDAD, opcional con un rol
+     * personalizado (lo limita a esa entidad) y nunca con ADMINISTRADOR/AUDITOR
+     * (ya validado en el Request). */
+    /** ENTIDAD y roles personalizados pueden llevar entidad; ADMINISTRADOR,
+     * AUDITOR y PROVEEDOR nunca (ven todas, o es un proveedor). */
+    public static function entidadParaRol(string $rol, mixed $entidadId): ?int
+    {
+        return in_array($rol, User::ROLES_SIN_ENTIDAD, true) || ! $entidadId ? null : (int) $entidadId;
+    }
+
     public function crearUsuarioPlataforma(array $datos): User
     {
         $nombreCompleto = trim("{$datos['nombres']} {$datos['apellido_paterno']} {$datos['apellido_materno']}");
@@ -52,7 +61,7 @@ class AdministracionService
                 'celular' => $datos['celular'] ?? null,
                 'fecha_nacimiento' => $datos['fecha_nacimiento'] ?? null,
                 'password' => Str::random(32),
-                'entidad_id' => $datos['rol'] === 'ENTIDAD' ? $datos['entidad_id'] : null,
+                'entidad_id' => self::entidadParaRol($datos['rol'], $datos['entidad_id'] ?? null),
             ]);
 
             $user->assignRole($datos['rol']);
@@ -89,7 +98,7 @@ class AdministracionService
 
         if (! empty($datos['rol'])) {
             $usuario->syncRoles([$datos['rol']]);
-            $usuario->update(['entidad_id' => $datos['rol'] === 'ENTIDAD' ? $datos['entidad_id'] : null]);
+            $usuario->update(['entidad_id' => self::entidadParaRol($datos['rol'], $datos['entidad_id'] ?? null)]);
         }
 
         $this->auditoria->registrar('ADMINISTRACION', 'ACTUALIZAR', 'users', $usuario->id, $valorAnterior, $usuario->only($camposAuditados));
@@ -249,7 +258,7 @@ class AdministracionService
     public function crearRol(array $datos): Role
     {
         $rol = Role::create(['name' => $datos['nombre'], 'guard_name' => 'web']);
-        $rol->syncPermissions($datos['permisos'] ?? []);
+        $rol->syncPermissions(CatalogoPermisos::combinar($datos['nombre'], $datos['permisos'] ?? [], [], CatalogoPermisos::modulosOcultos()));
 
         $this->auditoria->registrar('ADMINISTRACION', 'CREAR', 'roles', $rol->id);
 
@@ -286,8 +295,16 @@ class AdministracionService
 
     public function actualizarPermisosRol(string $rol, array $permisos): Role
     {
+        if (CatalogoPermisos::tienePermisosFijos($rol)) {
+            throw new HttpException(422, "El rol {$rol} es reservado: sus permisos son fijos y no se editan.");
+        }
+
         $roleModel = Role::where('name', $rol)->where('guard_name', 'web')->firstOrFail();
         $valorAnterior = $roleModel->permissions()->pluck('name')->all();
+
+        // Lo que la pantalla no ofrece (módulos ocultos, permisos solo de
+        // proveedor) no se puede dar ni quitar desde aquí: se conserva tal cual.
+        $permisos = CatalogoPermisos::combinar($rol, $permisos, $valorAnterior, CatalogoPermisos::modulosOcultos());
 
         $roleModel->syncPermissions($permisos);
 

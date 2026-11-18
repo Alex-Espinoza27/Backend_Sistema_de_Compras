@@ -77,6 +77,38 @@ class User extends Authenticatable
         return $this->belongsTo(Entidad::class, 'entidad_id');
     }
 
+    /** Roles que ven todas las entidades (o ninguna, el proveedor): nunca llevan entidad. */
+    public const ROLES_SIN_ENTIDAD = ['ADMINISTRADOR', 'AUDITOR', 'PROVEEDOR'];
+
+    /**
+     * ¿Este usuario trabaja SOLO con los datos de su entidad?
+     *
+     * Sí si tiene rol ENTIDAD o si tiene una entidad asignada (cualquier rol
+     * personalizado). Antes se miraba solo el nombre del rol `ENTIDAD`, y un
+     * usuario con rol personalizado veía los datos de TODAS las entidades.
+     * Un usuario ENTIDAD sin entidad (dato roto) sigue limitado: no ve nada.
+     */
+    public function limitadoAEntidad(): bool
+    {
+        return self::limitaAEntidad($this->getRoleNames()->all(), $this->entidad_id);
+    }
+
+    /** Su entidad si está limitado a ella; null si ve todas. */
+    public function entidadPropiaId(): ?int
+    {
+        return $this->limitadoAEntidad() ? $this->entidad_id : null;
+    }
+
+    /** @param  list<string>  $roles */
+    public static function limitaAEntidad(array $roles, ?int $entidadId): bool
+    {
+        if (array_intersect($roles, self::ROLES_SIN_ENTIDAD)) {
+            return false;
+        }
+
+        return in_array('ENTIDAD', $roles, true) || $entidadId !== null;
+    }
+
     public function tipoDocumento(): BelongsTo
     {
         return $this->belongsTo(TipoDocumento::class, 'tipo_documento_id');

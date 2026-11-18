@@ -26,7 +26,8 @@ class DashboardController extends Controller
                 ->header('Cache-Control', 'private, max-age=60');
         }
 
-        $esAdminOAuditor = $user->hasAnyRole(['ADMINISTRADOR', 'AUDITOR']);
+        // Ve todas las entidades quien no está limitado a la suya.
+        $esAdminOAuditor = ! $user->limitadoAEntidad();
         $entidadId = $esAdminOAuditor ? $request->integer('entidad_id') ?: null : $user->entidad_id;
 
         $estados = Estado::where('ESTA_CONTEXTO', 'CONVOCATORIA')->pluck('ESTA_ID', 'ESTA_CODIGO');

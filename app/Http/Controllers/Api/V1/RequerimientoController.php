@@ -34,7 +34,9 @@ class RequerimientoController extends Controller
             'fecha_creacion' => 'REQU_CREADO_EN',
         ][$request->input('ordenar_por', 'numero')] ?? 'REQU_NUMERO';
 
-        $esAdminOAuditor = $request->user()->hasAnyRole(['ADMINISTRADOR', 'AUDITOR']);
+        // Ve todas las entidades quien no está limitado a la suya (ADMINISTRADOR,
+        // AUDITOR o un rol personalizado sin entidad asignada).
+        $esAdminOAuditor = ! $request->user()->limitadoAEntidad();
 
         $query = Requerimiento::query()
             ->select(['REQU_ID', 'REQU_ENTIDAD_ID', 'REQU_NUMERO', 'REQU_OBJETO', 'REQU_TIPO', 'REQU_AREA_ID', 'REQU_ACTIVO', 'REQU_CREADO_EN'])

@@ -32,7 +32,7 @@ class RequerimientoService
         // entidad que elija explícitamente (`entidad_id`, validado en
         // `RequerimientoStoreRequest`). Se verifica el ROL, no solo si
         // `entidad_id` está vacío en la fila del usuario.
-        $entidadId = $usuario->hasRole('ENTIDAD') ? $usuario->entidad_id : ($datos['entidad_id'] ?? null);
+        $entidadId = $usuario->limitadoAEntidad() ? $usuario->entidad_id : ($datos['entidad_id'] ?? null);
 
         if (! $entidadId) {
             throw new HttpException(403, 'Debe pertenecer a una entidad para crear requerimientos.');

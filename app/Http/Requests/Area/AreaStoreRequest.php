@@ -20,7 +20,7 @@ class AreaStoreRequest extends FormRequest
      * usar su propio `entidad_id` aunque esa columna tuviera algún valor. */
     private function entidadIdEfectiva(): ?int
     {
-        return $this->user()->hasRole('ENTIDAD') ? $this->user()->entidad_id : ($this->integer('entidad_id') ?: null);
+        return $this->user()->limitadoAEntidad() ? $this->user()->entidad_id : ($this->integer('entidad_id') ?: null);
     }
 
     public function rules(): array
@@ -30,7 +30,7 @@ class AreaStoreRequest extends FormRequest
         return [
             // Solo obligatorio para quien no tiene entidad propia.
             'entidad_id' => [
-                Rule::requiredIf(fn () => ! $this->user()->hasRole('ENTIDAD')),
+                Rule::requiredIf(fn () => ! $this->user()->limitadoAEntidad()),
                 'nullable', 'integer', Rule::exists('ENTIDAD', 'ENTI_ID'),
             ],
             'nombre' => [

@@ -57,7 +57,10 @@ Route::prefix('v1')->middleware('throttle:api')->group(function () {
     Route::prefix('publico')->middleware('throttle:publico')->group(function () {
         Route::get('/configuracion/tema', [PublicoController::class, 'tema']);
         Route::get('/entidades', [PublicoController::class, 'entidades']);
-        Route::post('/entidades/solicitud', [PublicoController::class, 'solicitudEntidad']);
+        // Solicitud pública de alta de entidad: DESACTIVADA (el módulo Entidades
+        // está oculto y nadie revisaría las solicitudes). Para reactivarla,
+        // descomentar esta línea y la ruta/enlace del frontend.
+        // Route::post('/entidades/solicitud', [PublicoController::class, 'solicitudEntidad']);
         Route::get('/rubros', [PublicoController::class, 'rubros']);
         Route::get('/convocatorias', [PublicoController::class, 'convocatorias']);
         Route::get('/convocatorias/{id}', [PublicoController::class, 'convocatoria'])->whereNumber('id');
@@ -131,6 +134,10 @@ Route::prefix('v1')->middleware('throttle:api')->group(function () {
     Route::get('/archivos/{id}/descargar', [ArchivoController::class, 'descargar'])->whereNumber('id')->middleware('auth:sanctum');
 
     Route::prefix('entidades')->middleware('auth:sanctum')->group(function () {
+        // Combo de entidades para los selectores de Áreas, Requerimientos,
+        // Dashboard, Reportes y Usuarios: no exige el permiso del módulo
+        // Entidades (oculto), solo una sesión interna.
+        Route::get('/combo', [EntidadController::class, 'combo']);
         Route::get('/', [EntidadController::class, 'index'])->middleware('permission:entidades.ver');
         Route::post('/', [EntidadController::class, 'store'])->middleware('permission:entidades.gestionar');
         Route::get('/{id}', [EntidadController::class, 'show'])->whereNumber('id')->middleware('permission:entidades.ver');

@@ -21,7 +21,9 @@ class AreaController extends Controller
 {
     public function index(AreaIndexRequest $request): JsonResponse
     {
-        $esAdminOAuditor = $request->user()->hasAnyRole(['ADMINISTRADOR', 'AUDITOR']);
+        // Ve todas las entidades quien no está limitado a la suya (ADMINISTRADOR,
+        // AUDITOR o un rol personalizado sin entidad asignada).
+        $esAdminOAuditor = ! $request->user()->limitadoAEntidad();
 
         if (! $esAdminOAuditor && ! $request->user()->entidad_id) {
             throw new HttpException(403, 'Debe pertenecer a una entidad para ver sus áreas.');
@@ -63,7 +65,7 @@ class AreaController extends Controller
         // elija explícitamente (`entidad_id`, validado en `AreaStoreRequest`).
         // Se verifica el ROL, no solo la presencia de `entidad_id` en la
         // fila del usuario.
-        $entidadId = $request->user()->hasRole('ENTIDAD') ? $request->user()->entidad_id : $request->integer('entidad_id');
+        $entidadId = $request->user()->limitadoAEntidad() ? $request->user()->entidad_id : $request->integer('entidad_id');
 
         if (! $entidadId) {
             throw new HttpException(403, 'Debe pertenecer a una entidad para crear áreas.');

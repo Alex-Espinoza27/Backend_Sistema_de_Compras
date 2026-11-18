@@ -4,6 +4,7 @@ namespace App\Http\Requests\Admin;
 
 use App\Models\Entidad;
 use App\Models\TipoDocumento;
+use App\Models\User;
 use Illuminate\Contracts\Validation\Validator;
 use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Validation\Rule;
@@ -56,20 +57,29 @@ class UsuarioPlataformaUpdateRequest extends FormRequest
                 return;
             }
 
-            if ($rol === 'ENTIDAD') {
-                if (! $entidadId) {
-                    $validator->errors()->add('entidad_id', 'Debe seleccionar una entidad para un usuario de rol ENTIDAD.');
+            // ENTIDAD: entidad obligatoria. Rol personalizado: opcional (con
+            // entidad solo trabaja con los datos de esa entidad; sin ella ve
+            // todas). ADMINISTRADOR/AUDITOR: nunca, ven todas las entidades.
+            if ($rol === 'ENTIDAD' && ! $entidadId) {
+                $validator->errors()->add('entidad_id', 'Debe seleccionar una entidad para un usuario de rol ENTIDAD.');
 
-                    return;
+                return;
+            }
+
+            if (in_array($rol, User::ROLES_SIN_ENTIDAD, true)) {
+                if ($entidadId) {
+                    $validator->errors()->add('entidad_id', "El rol {$rol} ve todas las entidades: no se le asigna una entidad.");
                 }
 
+                return;
+            }
+
+            if ($entidadId) {
                 $entidad = Entidad::select(['ENTI_ID', 'ENTI_ESTADO_ID'])->with('estado:ESTA_ID,ESTA_CODIGO')->find($entidadId);
 
-                if (! $entidad || $entidad->estado->ESTA_CODIGO !== 'APROBADA') {
+                if (! $entidad || $entidad->estado?->ESTA_CODIGO !== 'APROBADA') {
                     $validator->errors()->add('entidad_id', 'La entidad debe existir y estar aprobada.');
                 }
-            } elseif ($entidadId) {
-                $validator->errors()->add('entidad_id', 'Solo se puede indicar entidad para un usuario de rol ENTIDAD.');
             }
         });
     }

@@ -21,7 +21,7 @@ class RequerimientoStoreRequest extends FormRequest
      * `entidad_id` está vacío en la fila del usuario. */
     private function entidadIdEfectiva(): ?int
     {
-        return $this->user()->hasRole('ENTIDAD') ? $this->user()->entidad_id : ($this->integer('entidad_id') ?: null);
+        return $this->user()->limitadoAEntidad() ? $this->user()->entidad_id : ($this->integer('entidad_id') ?: null);
     }
 
     public function rules(): array
@@ -32,7 +32,7 @@ class RequerimientoStoreRequest extends FormRequest
         return [
             // Solo obligatorio para quien no tiene entidad propia.
             'entidad_id' => [
-                Rule::requiredIf(fn () => ! $this->user()->hasRole('ENTIDAD')),
+                Rule::requiredIf(fn () => ! $this->user()->limitadoAEntidad()),
                 'nullable', 'integer', Rule::exists('ENTIDAD', 'ENTI_ID'),
             ],
             'objeto' => ['required', 'string', 'max:'.self::MAX_OBJETO],

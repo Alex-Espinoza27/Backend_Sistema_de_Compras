@@ -15,8 +15,15 @@ class ActualizarPermisosRolRequest extends FormRequest
     public function rules(): array
     {
         return [
-            'permisos' => ['present', 'array'],
+            'permisos' => ['present', 'array', 'min:1'],
             'permisos.*' => ['string', Rule::exists('permissions', 'name')],
+        ];
+    }
+
+    public function messages(): array
+    {
+        return [
+            'permisos.min' => 'Selecciona al menos un permiso.',
         ];
     }
 }

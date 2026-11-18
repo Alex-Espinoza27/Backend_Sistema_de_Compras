@@ -16,10 +16,47 @@ use App\Models\User;
 use App\Services\EntidadService;
 use App\Support\ApiResponse;
 use Illuminate\Http\JsonResponse;
+use Illuminate\Http\Request;
+use Symfony\Component\HttpKernel\Exception\HttpException;
 
 class EntidadController extends Controller
 {
     public function __construct(private EntidadService $entidadService) {}
+
+    /**
+     * Lista corta (id, razón social, sigla, estado) para los selectores de
+     * entidad. Antes esos combos llamaban a `index`, que exige `entidades.ver`:
+     * un rol personalizado sin ese permiso recibía 403 al abrir la pantalla.
+     * Quien está limitado a su entidad solo recibe la suya; el proveedor, nada.
+     */
+    public function combo(Request $request): JsonResponse
+    {
+        $user = $request->user();
+
+        if ($user->hasRole('PROVEEDOR')) {
+            throw new HttpException(403, 'No tienes permiso para esta acción.');
+        }
+
+        $entidades = Entidad::query()
+            ->select(['ENTI_ID', 'ENTI_RAZON_SOCIAL', 'ENTI_SIGLA', 'ENTI_ESTADO_ID'])
+            ->with('estado:ESTA_ID,ESTA_CODIGO')
+            ->when($user->limitadoAEntidad(), fn ($q) => $q->where('ENTI_ID', $user->entidad_id))
+            ->when($request->filled('estado'), fn ($q) => $q->whereHas(
+                'estado',
+                fn ($e) => $e->where('ESTA_CODIGO', $request->string('estado')),
+            ))
+            ->orderBy('ENTI_RAZON_SOCIAL')
+            ->get()
+            ->map(fn (Entidad $e) => [
+                'entidad_id' => $e->ENTI_ID,
+                'razon_social' => $e->ENTI_RAZON_SOCIAL,
+                'sigla' => $e->ENTI_SIGLA,
+                'estado' => $e->estado?->ESTA_CODIGO,
+            ])
+            ->values();
+
+        return ApiResponse::success($entidades);
+    }
 
     public function index(EntidadIndexRequest $request): JsonResponse
     {

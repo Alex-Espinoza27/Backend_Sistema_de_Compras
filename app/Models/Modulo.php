@@ -22,5 +22,10 @@ class Modulo extends Model
         'MODU_NOMBRE',
         'MODU_ICONO',
         'MODU_ORDEN',
+        'MODU_VISIBLE',
+    ];
+
+    protected $casts = [
+        'MODU_VISIBLE' => 'boolean',
     ];
 }

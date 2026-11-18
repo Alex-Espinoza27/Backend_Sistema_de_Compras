@@ -306,6 +306,9 @@ class AuthController extends Controller
             ->values();
 
         $menu = Modulo::whereIn('MODU_CODIGO', $modulosPermitidos)
+            // Módulos ocultos (MODU_VISIBLE = false, p. ej. Entidades): no se
+            // muestran a nadie, aunque el rol conserve sus permisos.
+            ->where('MODU_VISIBLE', true)
             ->orderBy('MODU_ORDEN')
             ->get()
             ->map(fn (Modulo $modulo) => [
@@ -318,7 +321,9 @@ class AuthController extends Controller
 
         $perfil = ['tipo' => 'INTERNO'];
 
-        if ($rol === 'ENTIDAD' && $user->entidad) {
+        // Perfil ENTIDAD = limitado a su entidad (rol ENTIDAD o rol
+        // personalizado con entidad asignada): el frontend decide con esto.
+        if ($user->limitadoAEntidad() && $user->entidad) {
             $perfil = [
                 'tipo' => 'ENTIDAD',
                 'entidad' => [

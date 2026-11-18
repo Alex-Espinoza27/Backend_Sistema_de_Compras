@@ -84,7 +84,7 @@ class ReporteController extends Controller
     {
         $filtros = $request->validated();
 
-        if ($request->user()->hasRole('ENTIDAD')) {
+        if ($request->user()->limitadoAEntidad()) {
             $filtros['entidad_id'] = $request->user()->entidad_id;
         }
 

@@ -4,6 +4,7 @@ namespace App\Http\Requests\Admin;
 
 use App\Models\Entidad;
 use App\Models\TipoDocumento;
+use App\Models\User;
 use Illuminate\Contracts\Validation\Validator;
 use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Validation\Rule;
@@ -13,7 +14,8 @@ use Illuminate\Validation\Rule;
  * internos + Entidad; reemplaza `UsuarioInternoStoreRequest`, acotado antes a
  * ADMINISTRADOR/AUDITOR). `rol` acepta cualquier rol excepto PROVEEDOR (esos
  * se gestionan en Mantenimiento de Proveedores). `entidad_id` es obligatorio
- * solo si `rol === 'ENTIDAD'`, y debe apuntar a una entidad `APROBADA`.
+ * con rol ENTIDAD, opcional con un rol personalizado y prohibido con
+ * ADMINISTRADOR/AUDITOR; si se indica, debe ser una entidad `APROBADA`.
  *
  * `tipo_documento` (05C hardening, pedido explícitamente por el usuario):
  * código del catálogo `TIPO_DOCUMENTO` (DNI/CE/PASAPORTE, nunca RUC — ese es
@@ -61,20 +63,29 @@ class UsuarioPlataformaStoreRequest extends FormRequest
             $rol = $this->input('rol');
             $entidadId = $this->input('entidad_id');
 
-            if ($rol === 'ENTIDAD') {
-                if (! $entidadId) {
-                    $validator->errors()->add('entidad_id', 'Debe seleccionar una entidad para un usuario de rol ENTIDAD.');
+            // ENTIDAD: entidad obligatoria. Rol personalizado: opcional (con
+            // entidad solo trabaja con los datos de esa entidad; sin ella ve
+            // todas). ADMINISTRADOR/AUDITOR: nunca, ven todas las entidades.
+            if ($rol === 'ENTIDAD' && ! $entidadId) {
+                $validator->errors()->add('entidad_id', 'Debe seleccionar una entidad para un usuario de rol ENTIDAD.');
 
-                    return;
+                return;
+            }
+
+            if (in_array($rol, User::ROLES_SIN_ENTIDAD, true)) {
+                if ($entidadId) {
+                    $validator->errors()->add('entidad_id', "El rol {$rol} ve todas las entidades: no se le asigna una entidad.");
                 }
 
+                return;
+            }
+
+            if ($entidadId) {
                 $entidad = Entidad::select(['ENTI_ID', 'ENTI_ESTADO_ID'])->with('estado:ESTA_ID,ESTA_CODIGO')->find($entidadId);
 
-                if (! $entidad || $entidad->estado->ESTA_CODIGO !== 'APROBADA') {
+                if (! $entidad || $entidad->estado?->ESTA_CODIGO !== 'APROBADA') {
                     $validator->errors()->add('entidad_id', 'La entidad debe existir y estar aprobada.');
                 }
-            } elseif ($entidadId) {
-                $validator->errors()->add('entidad_id', 'Solo se puede indicar entidad para un usuario de rol ENTIDAD.');
             }
         });
     }
