@@ -9,13 +9,13 @@ use App\Models\Proveedor;
 use App\Models\TipoDocumento;
 use App\Models\Uit;
 use App\Support\CatalogoPermisos;
+use App\Support\EnlacePassword;
 use App\Models\User;
 use Illuminate\Support\Facades\Artisan;
 use Illuminate\Support\Facades\Crypt;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Mail;
-use Illuminate\Support\Facades\Password;
 use Illuminate\Support\Str;
 use Spatie\Permission\Models\Role;
 use Symfony\Component\HttpKernel\Exception\HttpException;
@@ -27,6 +27,10 @@ use Symfony\Component\HttpKernel\Exception\HttpException;
  */
 class AdministracionService
 {
+    /** Si el último alta logró enviar el correo con el enlace de contraseña
+     * (el alta se guarda igual aunque el correo falle; ver EnlacePassword). */
+    public bool $correoEnviado = true;
+
     public function __construct(
         private EstadoService $estadoService,
         private AuditoriaService $auditoria,
@@ -71,7 +75,7 @@ class AdministracionService
             return $user;
         });
 
-        Password::sendResetLink(['email' => $user->email]);
+        $this->correoEnviado = EnlacePassword::enviar($user->email);
 
         return $user;
     }
@@ -200,7 +204,7 @@ class AdministracionService
             return $proveedor;
         });
 
-        Password::sendResetLink(['email' => $proveedor->PROV_CORREO]);
+        $this->correoEnviado = EnlacePassword::enviar($proveedor->PROV_CORREO);
 
         return $proveedor;
     }
@@ -452,7 +456,11 @@ class AdministracionService
             return 'Contraseña actualizada correctamente.';
         }
 
-        Password::sendResetLink(['email' => $usuario->email]);
+        // Aquí el correo ES la operación: si falla se informa como error (422),
+        // pero nunca como un 500.
+        if (! EnlacePassword::enviar($usuario->email)) {
+            throw new HttpException(422, 'No se pudo enviar el enlace de restablecimiento. Revise la configuración de correo (Configuración → Correo) e intente nuevamente.');
+        }
 
         $this->auditoria->registrar('ADMINISTRACION', 'ACTUALIZAR', 'users', $usuario->id, ['motivo' => 'Envío de enlace de restablecimiento por administrador']);
 

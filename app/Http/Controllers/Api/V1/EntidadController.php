@@ -15,6 +15,7 @@ use App\Models\Estado;
 use App\Models\User;
 use App\Services\EntidadService;
 use App\Support\ApiResponse;
+use App\Support\EnlacePassword;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Symfony\Component\HttpKernel\Exception\HttpException;
@@ -160,7 +161,13 @@ class EntidadController extends Controller
     {
         $entidad = $this->entidadService->altaDirecta($request->validated());
 
-        return ApiResponse::success(['entidad_id' => $entidad->ENTI_ID], 'Entidad registrada y aprobada.', 201);
+        $enviado = $this->entidadService->correoEnviado;
+
+        return ApiResponse::success(
+            ['entidad_id' => $entidad->ENTI_ID, 'correo_enviado' => $enviado],
+            EnlacePassword::mensaje('Entidad registrada y aprobada.', $enviado),
+            201,
+        );
     }
 
     public function aprobar(AprobarEntidadRequest $request, int $id): JsonResponse
@@ -169,7 +176,9 @@ class EntidadController extends Controller
 
         $this->entidadService->aprobar($entidad, $request->input('usuario_inicial'));
 
-        return ApiResponse::success(null, 'Entidad aprobada.');
+        $enviado = $this->entidadService->correoEnviado;
+
+        return ApiResponse::success(['correo_enviado' => $enviado], EnlacePassword::mensaje('Entidad aprobada.', $enviado));
     }
 
     public function observar(MotivoEntidadRequest $request, int $id): JsonResponse
@@ -226,8 +235,13 @@ class EntidadController extends Controller
         $entidad = Entidad::select(['ENTI_ID'])->findOrFail($id);
 
         $usuario = $this->entidadService->crearUsuario($entidad, $request->validated());
+        $enviado = $this->entidadService->correoEnviado;
 
-        return ApiResponse::success(['id' => $usuario->id], 'Usuario creado.', 201);
+        return ApiResponse::success(
+            ['id' => $usuario->id, 'correo_enviado' => $enviado],
+            EnlacePassword::mensaje('Usuario creado.', $enviado),
+            201,
+        );
     }
 
     public function updateUsuario(UsuarioEntidadUpdateRequest $request, int $id, int $userId): JsonResponse

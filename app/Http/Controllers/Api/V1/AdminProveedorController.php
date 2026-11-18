@@ -11,6 +11,7 @@ use App\Models\Proveedor;
 use App\Models\Rubro;
 use App\Services\AdministracionService;
 use App\Support\ApiResponse;
+use App\Support\EnlacePassword;
 use Illuminate\Http\JsonResponse;
 
 class AdminProveedorController extends Controller
@@ -119,7 +120,13 @@ class AdminProveedorController extends Controller
     {
         $proveedor = $this->administracionService->crearProveedor($request->validated());
 
-        return ApiResponse::success(['proveedor_id' => $proveedor->PROV_ID], 'Proveedor creado.', 201);
+        $enviado = $this->administracionService->correoEnviado;
+
+        return ApiResponse::success(
+            ['proveedor_id' => $proveedor->PROV_ID, 'correo_enviado' => $enviado],
+            EnlacePassword::mensaje('Proveedor creado.', $enviado),
+            201,
+        );
     }
 
     public function update(AdminProveedorUpdateRequest $request, int $id): JsonResponse

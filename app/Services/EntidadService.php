@@ -6,8 +6,8 @@ use App\Models\Entidad;
 use App\Models\Estado;
 use App\Models\TipoDocumento;
 use App\Models\User;
+use App\Support\EnlacePassword;
 use Illuminate\Support\Facades\DB;
-use Illuminate\Support\Facades\Password;
 use Illuminate\Support\Str;
 use Symfony\Component\HttpKernel\Exception\HttpException;
 
@@ -19,6 +19,10 @@ use Symfony\Component\HttpKernel\Exception\HttpException;
  */
 class EntidadService
 {
+    /** Si el último alta logró enviar el correo con el enlace de contraseña
+     * (el alta se guarda igual aunque el correo falle; ver EnlacePassword). */
+    public bool $correoEnviado = true;
+
     public function __construct(
         private EstadoService $estadoService,
         private AuditoriaService $auditoria,
@@ -58,7 +62,7 @@ class EntidadService
             return [$entidad, $usuario];
         });
 
-        Password::sendResetLink(['email' => $usuario->email]);
+        $this->correoEnviado = EnlacePassword::enviar($usuario->email);
 
         return $entidad;
     }
@@ -100,7 +104,7 @@ class EntidadService
         });
 
         if ($usuarioCreado) {
-            Password::sendResetLink(['email' => $usuarioCreado->email]);
+            $this->correoEnviado = EnlacePassword::enviar($usuarioCreado->email);
         }
 
         return $entidad->fresh();
@@ -214,7 +218,7 @@ class EntidadService
             return $usuario;
         });
 
-        Password::sendResetLink(['email' => $usuario->email]);
+        $this->correoEnviado = EnlacePassword::enviar($usuario->email);
 
         return $usuario;
     }

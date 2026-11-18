@@ -9,6 +9,7 @@ use App\Http\Requests\Admin\UsuarioPlataformaUpdateRequest;
 use App\Models\User;
 use App\Services\AdministracionService;
 use App\Support\ApiResponse;
+use App\Support\EnlacePassword;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 
@@ -110,7 +111,13 @@ class GestionUsuariosController extends Controller
     {
         $usuario = $this->administracionService->crearUsuarioPlataforma($request->validated());
 
-        return ApiResponse::success(['id' => $usuario->id], 'Usuario creado.', 201);
+        $enviado = $this->administracionService->correoEnviado;
+
+        return ApiResponse::success(
+            ['id' => $usuario->id, 'correo_enviado' => $enviado],
+            EnlacePassword::mensaje('Usuario creado.', $enviado),
+            201,
+        );
     }
 
     public function update(UsuarioPlataformaUpdateRequest $request, int $id): JsonResponse

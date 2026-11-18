@@ -26,6 +26,7 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;
+use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Password;
 use Illuminate\Support\Carbon;
 use Illuminate\Validation\ValidationException;
@@ -110,10 +111,18 @@ class AuthController extends Controller
 
         $minutos = (int) config('auth.passwords.recuperacion.expire');
 
-        Password::broker('recuperacion')->sendResetLink(
-            $request->only('email'),
-            fn (User $user, string $token) => $user->notify(new RestablecerPasswordNotification($token, $minutos)),
-        );
+        // Un fallo del SMTP no debe salir como 500 con el detalle técnico del
+        // servidor de correo: se registra y se pide reintentar más tarde.
+        try {
+            Password::broker('recuperacion')->sendResetLink(
+                $request->only('email'),
+                fn (User $user, string $token) => $user->notify(new RestablecerPasswordNotification($token, $minutos)),
+            );
+        } catch (\Throwable $e) {
+            Log::warning('No se pudo enviar el enlace de recuperación de contraseña.', ['error' => $e->getMessage()]);
+
+            return ApiResponse::error('No se pudo enviar el correo en este momento. Intente nuevamente más tarde.', null, 503);
+        }
 
         // Misma respuesta exista o no el correo (no revela qué cuentas hay).
         return ApiResponse::success(
