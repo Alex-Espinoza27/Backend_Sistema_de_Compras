@@ -76,9 +76,13 @@ Route::prefix('v1')->middleware('throttle:api')->group(function () {
         Route::get('/estadisticas', [DatosAbiertosController::class, 'estadisticas']);
     });
 
+    // APIs de apoyo (combos y catálogos que una pantalla necesita para
+    // funcionar): aceptan el permiso de CUALQUIER módulo que las usa, no solo
+    // el de su propio módulo. Ej.: el formulario de Requerimientos lista las
+    // áreas aunque el rol no tenga el módulo Áreas.
     Route::prefix('requerimientos')->middleware('auth:sanctum')->group(function () {
-        Route::get('/combo', [RequerimientoController::class, 'combo'])->middleware('permission:convocatorias.crear');
-        Route::get('/unidades-medida', [RequerimientoController::class, 'unidadesMedida'])->middleware('permission:requerimientos.ver');
+        Route::get('/combo', [RequerimientoController::class, 'combo'])->middleware('permission:convocatorias.ver|convocatorias.crear|convocatorias.editar');
+        Route::get('/unidades-medida', [RequerimientoController::class, 'unidadesMedida'])->middleware('permission:requerimientos.ver|requerimientos.crear|requerimientos.editar');
         Route::get('/', [RequerimientoController::class, 'index'])->middleware('permission:requerimientos.ver');
         Route::get('/{id}', [RequerimientoController::class, 'show'])->whereNumber('id')->middleware('permission:requerimientos.ver');
         Route::post('/', [RequerimientoController::class, 'store'])->middleware('permission:requerimientos.crear');
@@ -89,14 +93,17 @@ Route::prefix('v1')->middleware('throttle:api')->group(function () {
     });
 
     Route::prefix('areas')->middleware('auth:sanctum')->group(function () {
-        Route::get('/', [AreaController::class, 'index'])->middleware('permission:areas.ver');
+        // Apoyo: combo de áreas del formulario de Requerimientos y filtro de Reportes.
+        Route::get('/', [AreaController::class, 'index'])->middleware('permission:areas.ver|requerimientos.ver|requerimientos.crear|requerimientos.editar|reportes.ver');
         Route::post('/', [AreaController::class, 'store'])->middleware('permission:areas.gestionar');
         Route::put('/{id}', [AreaController::class, 'update'])->whereNumber('id')->middleware('permission:areas.gestionar');
     });
 
     Route::prefix('convocatorias')->middleware('auth:sanctum')->group(function () {
-        Route::get('/', [ConvocatoriaController::class, 'index'])->middleware('permission:convocatorias.ver');
-        Route::get('/plantilla-dj-defecto', [ConvocatoriaController::class, 'plantillaDjDefecto'])->middleware('permission:convocatorias.ver');
+        // Apoyo: las bandejas de Evaluación y Adjudicación listan convocatorias.
+        // Sin convocatorias.ver, el controlador solo permite esas bandejas.
+        Route::get('/', [ConvocatoriaController::class, 'index'])->middleware('permission:convocatorias.ver|evaluacion.ver|adjudicacion.ver');
+        Route::get('/plantilla-dj-defecto', [ConvocatoriaController::class, 'plantillaDjDefecto'])->middleware('permission:convocatorias.ver|administracion.configuracion');
         Route::get('/{id}', [ConvocatoriaController::class, 'show'])->whereNumber('id')->middleware('permission:convocatorias.ver');
         Route::post('/', [ConvocatoriaController::class, 'store'])->middleware('permission:convocatorias.crear');
         Route::put('/{id}', [ConvocatoriaController::class, 'update'])->whereNumber('id')->middleware('permission:convocatorias.editar');
@@ -106,10 +113,12 @@ Route::prefix('v1')->middleware('throttle:api')->group(function () {
         Route::post('/{id}/ampliar-fecha-fin', [ConvocatoriaController::class, 'ampliarFechaFin'])->whereNumber('id')->middleware('permission:convocatorias.ampliar');
         Route::get('/{id}/postulacion', [OfertaController::class, 'postulacion'])->whereNumber('id')->middleware(['role:PROVEEDOR', 'permission:ofertas.crear']);
         Route::get('/{id}/ofertas', [EvaluacionController::class, 'ofertas'])->whereNumber('id')->middleware('permission:evaluacion.ver');
-        Route::get('/{id}/cuadro-comparativo', [EvaluacionController::class, 'cuadroComparativo'])->whereNumber('id')->middleware('permission:evaluacion.ver');
+        // Apoyo: la pantalla de Adjudicación muestra el cuadro comparativo.
+        Route::get('/{id}/cuadro-comparativo', [EvaluacionController::class, 'cuadroComparativo'])->whereNumber('id')->middleware('permission:evaluacion.ver|adjudicacion.ver');
         Route::post('/{id}/adjudicar', [AdjudicacionController::class, 'adjudicar'])->whereNumber('id')->middleware('permission:adjudicacion.adjudicar');
         Route::post('/{id}/desierta', [AdjudicacionController::class, 'desierta'])->whereNumber('id')->middleware('permission:adjudicacion.declarar_desierta');
-        Route::get('/{id}/resultados', [AdjudicacionController::class, 'resultados'])->whereNumber('id')->middleware('permission:adjudicacion.ver');
+        // Apoyo: "Ver resultados" también se abre desde el listado de Convocatorias.
+        Route::get('/{id}/resultados', [AdjudicacionController::class, 'resultados'])->whereNumber('id')->middleware('permission:adjudicacion.ver|convocatorias.ver');
     });
 
     Route::prefix('presentacion-ofertas')->middleware('auth:sanctum')->group(function () {
@@ -192,7 +201,8 @@ Route::prefix('v1')->middleware('throttle:api')->group(function () {
         Route::post('/proveedores/{id}/reactivar', [AdminProveedorController::class, 'reactivar'])->whereNumber('id')->middleware('permission:gestion_proveedores.gestionar');
         Route::post('/proveedores/{id}/suspender', [AdminProveedorController::class, 'suspender'])->whereNumber('id')->middleware('permission:gestion_proveedores.gestionar');
 
-        Route::get('/roles', [AdminRolController::class, 'roles'])->middleware('permission:roles_permisos.ver');
+        // Apoyo: el formulario de Usuarios necesita la lista de roles.
+        Route::get('/roles', [AdminRolController::class, 'roles'])->middleware('permission:roles_permisos.ver|gestion_usuarios.ver');
         Route::get('/permisos', [AdminRolController::class, 'permisos'])->middleware('permission:roles_permisos.ver');
         Route::post('/roles', [AdminRolController::class, 'crear'])->middleware('permission:roles_permisos.gestionar');
         Route::put('/roles/{rol}/permisos', [AdminRolController::class, 'actualizarPermisos'])->middleware('permission:roles_permisos.gestionar');
@@ -208,6 +218,11 @@ Route::prefix('v1')->middleware('throttle:api')->group(function () {
         Route::post('/configuracion/plantilla-dj-defecto', [AdminConfiguracionController::class, 'plantillaDjDefectoStore'])->middleware('permission:administracion.configuracion');
         Route::delete('/configuracion/plantilla-dj-defecto', [AdminConfiguracionController::class, 'plantillaDjDefectoDestroy'])->middleware('permission:administracion.configuracion');
 
+        // Apoyo: tipos de comprobante (filtro de Reportes) y tipos de documento
+        // (formulario de Usuarios). Las altas y ediciones siguen en Catálogos.
+        Route::get('/tipos-comprobante', [AdminCatalogoController::class, 'tiposComprobanteIndex'])->middleware('permission:administracion.catalogos|reportes.ver');
+        Route::get('/tipos-documento', [AdminCatalogoController::class, 'tiposDocumentoIndex'])->middleware('permission:administracion.catalogos|gestion_usuarios.ver');
+
         Route::middleware('permission:administracion.catalogos')->group(function () {
             Route::get('/rubros', [AdminCatalogoController::class, 'rubrosIndex']);
             Route::post('/rubros', [AdminCatalogoController::class, 'rubrosStore']);
@@ -217,7 +232,6 @@ Route::prefix('v1')->middleware('throttle:api')->group(function () {
             Route::post('/unidades-medida', [AdminCatalogoController::class, 'unidadesMedidaStore']);
             Route::put('/unidades-medida/{id}', [AdminCatalogoController::class, 'unidadesMedidaUpdate'])->whereNumber('id');
 
-            Route::get('/tipos-comprobante', [AdminCatalogoController::class, 'tiposComprobanteIndex']);
             Route::post('/tipos-comprobante', [AdminCatalogoController::class, 'tiposComprobanteStore']);
             Route::put('/tipos-comprobante/{id}', [AdminCatalogoController::class, 'tiposComprobanteUpdate'])->whereNumber('id');
 
@@ -225,7 +239,6 @@ Route::prefix('v1')->middleware('throttle:api')->group(function () {
             Route::post('/estados', [AdminCatalogoController::class, 'estadosStore']);
             Route::put('/estados/{id}', [AdminCatalogoController::class, 'estadosUpdate'])->whereNumber('id');
 
-            Route::get('/tipos-documento', [AdminCatalogoController::class, 'tiposDocumentoIndex']);
             Route::post('/tipos-documento', [AdminCatalogoController::class, 'tiposDocumentoStore']);
             Route::put('/tipos-documento/{id}', [AdminCatalogoController::class, 'tiposDocumentoUpdate'])->whereNumber('id');
         });

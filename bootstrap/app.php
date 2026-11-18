@@ -58,6 +58,11 @@ return Application::configure(basePath: dirname(__DIR__))
             return ApiResponse::error($e->getMessage() ?: 'No tiene permiso para esta acción.', null, 403);
         });
 
+        // Middleware permission:/role: de Spatie (su mensaje viene en inglés).
+        $exceptions->render(function (\Spatie\Permission\Exceptions\UnauthorizedException $e, Request $request) {
+            return ApiResponse::error('No tiene permiso para esta acción.', null, 403);
+        });
+
         $exceptions->render(function (ModelNotFoundException|NotFoundHttpException $e, Request $request) {
             return ApiResponse::error('El recurso solicitado no existe.', null, 404);
         });

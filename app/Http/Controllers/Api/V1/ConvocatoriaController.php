@@ -27,6 +27,18 @@ class ConvocatoriaController extends Controller
 
     public function index(ConvocatoriaIndexRequest $request): JsonResponse
     {
+        // Sin el módulo Convocatorias solo se puede pedir la bandeja del módulo
+        // que sí se tiene (Evaluación o Adjudicación), no el listado completo.
+        $usuario = $request->user();
+        if (! $usuario->can('convocatorias.ver')) {
+            $bandejaEvaluar = filter_var($request->input('lista_para_evaluar'), FILTER_VALIDATE_BOOLEAN) && $usuario->can('evaluacion.ver');
+            $bandejaAdjudicar = filter_var($request->input('lista_para_adjudicar'), FILTER_VALIDATE_BOOLEAN) && $usuario->can('adjudicacion.ver');
+
+            if (! $bandejaEvaluar && ! $bandejaAdjudicar) {
+                throw new HttpException(403, 'No tiene permiso para ver el listado de convocatorias.');
+            }
+        }
+
         $columnaOrden = [
             'fecha_fin' => 'CONV_FECHA_FIN',
             'fecha_inicio' => 'CONV_FECHA_INICIO',
