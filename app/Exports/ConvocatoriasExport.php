@@ -83,7 +83,8 @@ class ConvocatoriasExport implements FromQuery, ShouldAutoSize, WithEvents, With
             $conv->estado->ESTA_NOMBRE,
             optional($conv->CONV_FECHA_PUBLICACION)->format('Y-m-d H:i'),
             optional($conv->CONV_FECHA_RESULTADO)->format('Y-m-d H:i'),
-            $tieneTdr ? url("/api/v1/publico/convocatorias/{$conv->CONV_ID}/tdr") : 'No disponible',
+            #$tieneTdr ? url("/api/v1/publico/convocatorias/{$conv->CONV_ID}/tdr") : 'No disponible',
+            $tieneTdr ? 'Si' : 'No disponible',
         ];
     }
 
