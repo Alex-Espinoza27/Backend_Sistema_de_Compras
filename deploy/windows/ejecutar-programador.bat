@@ -1,5 +1,5 @@
 @echo off
-rem Programador de Laravel: convocatorias:vencer (cada 5 min) y respaldo:base-datos (diario).
+rem Programador de Laravel: convocatorias:vencer (cada 2 min) y respaldo:base-datos (diario).
 rem Lo lanza la tarea de Windows creada por instalar-tareas.bat. Argumentos:
 rem   %1 = ruta de php.exe   %2 = carpeta bin de PostgreSQL (para pg_dump)
 rem Si el proceso termina o falla, el bucle lo vuelve a levantar a los 10 s.
