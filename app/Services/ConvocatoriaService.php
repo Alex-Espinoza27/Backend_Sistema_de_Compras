@@ -236,8 +236,23 @@ class ConvocatoriaService
             ->where('CONV_FECHA_FIN', '<', now())
             ->get();
 
+        $total = 0;
         foreach ($convocatoriasVencidas as $convocatoria) {
-            DB::transaction(function () use ($convocatoria) {
+            $total += DB::transaction(function () use ($convocatoria) {
+                // Bloqueo de fila + revalidación: si mientras tanto alguien
+                // amplió el plazo o ya la cerró, no se toca. Una postulación
+                // en curso (que también bloquea esta fila) termina antes y
+                // su oferta ENVIADA pasa a EN_EVALUACION aquí abajo.
+                $convocatoria = Convocatoria::select(['CONV_ID', 'CONV_ESTADO_ID', 'CONV_FECHA_FIN'])
+                    ->lockForUpdate()
+                    ->find($convocatoria->CONV_ID);
+                $sigueVencida = $convocatoria
+                    && $convocatoria->CONV_FECHA_FIN->lt(now())
+                    && Estado::where('ESTA_ID', $convocatoria->CONV_ESTADO_ID)->value('ESTA_CODIGO') === 'PUBLICADA';
+                if (! $sigueVencida) {
+                    return 0;
+                }
+
                 $this->estadoService->transicionar(
                     modelo: $convocatoria,
                     columnaEstado: 'CONV_ESTADO_ID',
@@ -267,10 +282,12 @@ class ConvocatoriaService
                         tabla: 'OFERTA',
                     );
                 }
+
+                return 1;
             });
         }
 
-        return $convocatoriasVencidas->count();
+        return $total;
     }
 
     private function asegurarBorrador(Convocatoria $convocatoria): void

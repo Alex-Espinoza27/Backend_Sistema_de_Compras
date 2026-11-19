@@ -7,6 +7,8 @@ use App\Models\Estado;
 use App\Models\Oferta;
 use App\Models\OfertaItem;
 use App\Models\Proveedor;
+use DateTimeInterface;
+use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\DB;
 use Symfony\Component\HttpKernel\Exception\HttpException;
 
@@ -24,16 +26,44 @@ class OfertaService
         private CorreoPlataformaService $correos,
     ) {}
 
+    /**
+     * Valida con la hora del SERVIDOR (nunca la del navegador) que la
+     * convocatoria esté publicada y dentro de su plazo. No depende de que la
+     * tarea programada `convocatorias:vencer` ya haya corrido: si la fecha
+     * fin pasó, se rechaza aunque el estado siga en PUBLICADA.
+     */
     public function validarConvocatoriaVigente(Convocatoria $convocatoria): void
     {
         $codigo = Estado::where('ESTA_ID', $convocatoria->CONV_ESTADO_ID)->value('ESTA_CODIGO');
-        $vigente = $codigo === 'PUBLICADA'
-            && $convocatoria->CONV_FECHA_INICIO->lte(now())
-            && $convocatoria->CONV_FECHA_FIN->gte(now());
+        $ahora = now();
 
-        if (! $vigente) {
+        if ($codigo !== 'PUBLICADA') {
             throw new HttpException(409, 'La convocatoria no está publicada y vigente.');
         }
+        if ($convocatoria->CONV_FECHA_INICIO->gt($ahora)) {
+            throw new HttpException(409, 'La convocatoria aún no inicia; podrá postular desde el '.$this->fechaHora($convocatoria->CONV_FECHA_INICIO).'.');
+        }
+        if ($convocatoria->CONV_FECHA_FIN->lt($ahora)) {
+            throw new HttpException(409, 'El plazo para postular venció el '.$this->fechaHora($convocatoria->CONV_FECHA_FIN).'.');
+        }
+    }
+
+    private function fechaHora(DateTimeInterface $fecha): string
+    {
+        return Carbon::instance($fecha)->timezone(config('app.timezone'))->format('d/m/Y H:i');
+    }
+
+    /**
+     * Relee la convocatoria con bloqueo de fila (FOR UPDATE) dentro de la
+     * transacción. Así una postulación o un retiro no se cruzan con el
+     * cierre automático (`ConvocatoriaService::vencerVigencia`) ni con una
+     * ampliación de plazo: el que llega segundo espera y ve el estado final.
+     */
+    private function convocatoriaBloqueada(int $convocatoriaId): Convocatoria
+    {
+        return Convocatoria::select(['CONV_ID', 'CONV_ESTADO_ID', 'CONV_FECHA_INICIO', 'CONV_FECHA_FIN'])
+            ->lockForUpdate()
+            ->findOrFail($convocatoriaId);
     }
 
     public function validarProveedorActivo(Proveedor $proveedor): void
@@ -71,6 +101,11 @@ class OfertaService
         $segunTdrPago = filter_var($datos['forma_pago_segun_tdr'], FILTER_VALIDATE_BOOLEAN);
 
         $resultado = DB::transaction(function () use ($datos, $archivos, $proveedor, $convocatoria, $estadoEnviadaId, $segunTdrEjecucion, $segunTdrPago) {
+            // Segunda validación, ya con la fila bloqueada: la primera (antes
+            // de la transacción) evita trabajo inútil, esta es la que manda
+            // si el plazo venció mientras se procesaba el envío.
+            $this->validarConvocatoriaVigente($this->convocatoriaBloqueada($convocatoria->CONV_ID));
+
             $oferta = Oferta::create([
                 'OFER_CONVOCATORIA_ID' => $convocatoria->CONV_ID,
                 'OFER_PROVEEDOR_ID' => $proveedor->PROV_ID,
@@ -150,24 +185,29 @@ class OfertaService
 
     public function retirar(Oferta $oferta): void
     {
-        $convocatoria = Convocatoria::select(['CONV_ID', 'CONV_ESTADO_ID'])->findOrFail($oferta->OFER_CONVOCATORIA_ID);
-        $codigoConvocatoria = Estado::where('ESTA_ID', $convocatoria->CONV_ESTADO_ID)->value('ESTA_CODIGO');
+        DB::transaction(function () use ($oferta) {
+            $convocatoria = $this->convocatoriaBloqueada($oferta->OFER_CONVOCATORIA_ID);
+            $codigoConvocatoria = Estado::where('ESTA_ID', $convocatoria->CONV_ESTADO_ID)->value('ESTA_CODIGO');
 
-        if ($codigoConvocatoria !== 'PUBLICADA') {
-            throw new HttpException(409, 'La convocatoria ya no está vigente; la postulación quedó firme.');
-        }
+            // Estado Y fecha del servidor: entre el vencimiento y la próxima
+            // corrida de `convocatorias:vencer` el estado sigue en PUBLICADA,
+            // pero el plazo ya cerró y la postulación queda firme.
+            if ($codigoConvocatoria !== 'PUBLICADA' || $convocatoria->CONV_FECHA_FIN->lt(now())) {
+                throw new HttpException(409, 'La convocatoria ya no está vigente; la postulación quedó firme.');
+            }
 
-        // 05C hardening (pedido explícitamente por el usuario): ahora se
-        // puede evaluar mientras la convocatoria sigue PUBLICADA, así que ya
-        // no basta con mirar el estado de la convocatoria — una oferta que
-        // ya fue calificada no se puede retirar aunque el plazo siga abierto.
-        $codigoOferta = Estado::where('ESTA_ID', $oferta->OFER_ESTADO_ID)->value('ESTA_CODIGO');
-        if ($codigoOferta !== 'ENVIADA') {
-            throw new HttpException(409, 'Esta oferta ya fue evaluada; no se puede retirar.');
-        }
+            // 05C hardening (pedido explícitamente por el usuario): ahora se
+            // puede evaluar mientras la convocatoria sigue PUBLICADA, así que ya
+            // no basta con mirar el estado de la convocatoria — una oferta que
+            // ya fue calificada no se puede retirar aunque el plazo siga abierto.
+            $codigoOferta = Estado::where('ESTA_ID', $oferta->OFER_ESTADO_ID)->value('ESTA_CODIGO');
+            if ($codigoOferta !== 'ENVIADA') {
+                throw new HttpException(409, 'Esta oferta ya fue evaluada; no se puede retirar.');
+            }
 
-        $oferta->delete();
+            $oferta->delete();
 
-        $this->auditoria->registrar('OFERTAS', 'ELIMINAR', 'OFERTA', $oferta->OFER_ID);
+            $this->auditoria->registrar('OFERTAS', 'ELIMINAR', 'OFERTA', $oferta->OFER_ID);
+        });
     }
 }
